@@ -34,6 +34,8 @@ public struct StoredAction: Codable, Equatable, Hashable {
         case shortcut
         case undo
         case redo
+        case copy
+        case paste
         case passthrough
         case disabled
     }
@@ -42,12 +44,33 @@ public struct StoredAction: Codable, Equatable, Hashable {
     public var keyCode: UInt16
     public var modifiers: UInt64
     public var customLabel: String
+    public var isPhysicallyVerified: Bool
     
-    public init(type: ActionType, keyCode: UInt16 = 0, modifiers: UInt64 = 0, customLabel: String = "") {
+    enum CodingKeys: String, CodingKey {
+        case type, keyCode, modifiers, customLabel, isPhysicallyVerified
+    }
+    
+    public init(
+        type: ActionType,
+        keyCode: UInt16 = 0,
+        modifiers: UInt64 = 0,
+        customLabel: String = "",
+        isPhysicallyVerified: Bool = false
+    ) {
         self.type = type
         self.keyCode = keyCode
         self.modifiers = modifiers
         self.customLabel = customLabel
+        self.isPhysicallyVerified = isPhysicallyVerified
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.type = try container.decode(ActionType.self, forKey: .type)
+        self.keyCode = try container.decodeIfPresent(UInt16.self, forKey: .keyCode) ?? 0
+        self.modifiers = try container.decodeIfPresent(UInt64.self, forKey: .modifiers) ?? 0
+        self.customLabel = try container.decodeIfPresent(String.self, forKey: .customLabel) ?? ""
+        self.isPhysicallyVerified = try container.decodeIfPresent(Bool.self, forKey: .isPhysicallyVerified) ?? false
     }
     
     public var displayName: String {
@@ -58,6 +81,10 @@ public struct StoredAction: Codable, Equatable, Hashable {
             return "Undo (⌘Z)"
         case .redo:
             return "Redo (⇧⌘Z)"
+        case .copy:
+            return "Copy (⌘C)"
+        case .paste:
+            return "Paste (⌘V)"
         case .shortcut:
             return customLabel.isEmpty ? "Shortcut (\(keyCode))" : customLabel
         case .passthrough:
@@ -75,6 +102,10 @@ public struct StoredAction: Codable, Equatable, Hashable {
             return "Triggers Command+Z"
         case .redo:
             return "Triggers Shift+Command+Z"
+        case .copy:
+            return "Triggers Command+C"
+        case .paste:
+            return "Triggers Command+V"
         case .shortcut:
             return "Simulates recorded keypress"
         case .passthrough:
@@ -92,6 +123,10 @@ public struct StoredAction: Codable, Equatable, Hashable {
             return .undo
         case .redo:
             return .redo
+        case .copy:
+            return .shortcut(keyCode: 8, flags: .maskCommand)
+        case .paste:
+            return .shortcut(keyCode: 9, flags: .maskCommand)
         case .shortcut:
             return .shortcut(keyCode: CGKeyCode(keyCode), flags: CGEventFlags(rawValue: modifiers))
         case .passthrough:
@@ -160,6 +195,11 @@ public final class ProfileStore: ObservableObject {
     
     public let inputEngine: InputEngine
     private let storageURL: URL
+    private var undoHistory: [DeviceProfile] = []
+    
+    public var canUndo: Bool {
+        !undoHistory.isEmpty
+    }
     
     public init(inputEngine: InputEngine = InputEngine()) {
         self.inputEngine = inputEngine
@@ -191,6 +231,7 @@ public final class ProfileStore: ObservableObject {
     }
     
     public func setAssignment(button: PhysicalButton, action: StoredAction) {
+        undoHistory.append(activeProfile)
         var current = activeProfile
         current.assignments[button.rawValue] = action
         activeProfile = current
@@ -198,10 +239,31 @@ public final class ProfileStore: ObservableObject {
     }
     
     public func clearAssignment(button: PhysicalButton) {
+        undoHistory.append(activeProfile)
         var current = activeProfile
         current.assignments.removeValue(forKey: button.rawValue)
         activeProfile = current
         statusMessage = "Cleared \(button.displayName)"
+    }
+    
+    public func restoreDefaultAssignment(button: PhysicalButton) {
+        undoHistory.append(activeProfile)
+        let def = DeviceProfile.defaultProfile()
+        var current = activeProfile
+        if let defaultAction = def.assignments[button.rawValue] {
+            current.assignments[button.rawValue] = defaultAction
+        } else {
+            current.assignments.removeValue(forKey: button.rawValue)
+        }
+        activeProfile = current
+        statusMessage = "Restored default for \(button.displayName)"
+    }
+    
+    public func undoLastAssignment() {
+        guard let previous = undoHistory.popLast() else { return }
+        objectWillChange.send()
+        activeProfile = previous
+        statusMessage = "Reverted last change"
     }
     
     public func togglePause() {

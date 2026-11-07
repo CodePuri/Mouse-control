@@ -6,6 +6,11 @@ CONTENTS="$APP_DIR/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
 
+mkdir -p build
+
+echo "Compiling MouseControl with target arm64-apple-macos14.0..."
+DEVELOPER_DIR=/Applications/Xcode-26.6.0.app/Contents/Developer xcrun swiftc -target arm64-apple-macos14.0 Sources/*.swift Sources/Views/*.swift -o build/MouseControl
+
 mkdir -p "$MACOS"
 mkdir -p "$RESOURCES/Resources"
 
@@ -14,6 +19,9 @@ chmod +x "$MACOS/MouseControl"
 
 cp Resources/kreo_top_cutout.png "$RESOURCES/Resources/kreo_top_cutout.png"
 cp Resources/kreo_side_cutout.png "$RESOURCES/Resources/kreo_side_cutout.png"
+if [ -f "Resources/AppIcon.icns" ]; then
+    cp Resources/AppIcon.icns "$RESOURCES/AppIcon.icns"
+fi
 
 cat << 'PLIST' > "$CONTENTS/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -34,10 +42,18 @@ cat << 'PLIST' > "$CONTENTS/Info.plist"
     <string>Kreo Mouse Control</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>CFBundleSignature</key>
+    <string>????</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>MacOSX</string>
+    </array>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
@@ -51,5 +67,8 @@ cat << 'PLIST' > "$CONTENTS/Info.plist"
 </dict>
 </plist>
 PLIST
+
+codesign -s - --force --deep "$APP_DIR"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_DIR"
 
 echo "Successfully built and packaged $APP_DIR"

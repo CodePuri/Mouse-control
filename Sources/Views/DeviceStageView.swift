@@ -338,6 +338,8 @@ public struct DeviceStageView: View {
         case .wisprFlowPTT: return "Wispr Flow"
         case .undo: return "Undo"
         case .redo: return "Redo"
+        case .copy: return "Copy"
+        case .paste: return "Paste"
         case .shortcut: return act.customLabel.isEmpty ? "Shortcut" : act.customLabel
         case .passthrough: return "Passthrough"
         case .disabled: return "Disabled"
@@ -349,6 +351,8 @@ public struct DeviceStageView: View {
         case .wisprFlowPTT: return "⌥ PTT"
         case .undo: return "⌘Z"
         case .redo: return "⇧⌘Z"
+        case .copy: return "⌘C"
+        case .paste: return "⌘V"
         case .shortcut: return "Key"
         case .passthrough: return "Native"
         case .disabled: return "Off"
@@ -360,6 +364,8 @@ public struct DeviceStageView: View {
         case .wisprFlowPTT: return "mic.fill"
         case .undo: return "arrow.uturn.backward"
         case .redo: return "arrow.uturn.forward"
+        case .copy: return "doc.on.doc"
+        case .paste: return "doc.on.clipboard"
         case .shortcut: return "keyboard"
         case .passthrough: return "arrow.left.arrow.right"
         case .disabled: return "slash.circle"
@@ -369,7 +375,7 @@ public struct DeviceStageView: View {
     private func iconColorForAction(_ act: StoredAction) -> Color {
         switch act.type {
         case .wisprFlowPTT: return Theme.accentCyan
-        case .undo, .redo: return Theme.statusGreen
+        case .undo, .redo, .copy, .paste: return Theme.statusGreen
         default: return Theme.textSecondary
         }
     }

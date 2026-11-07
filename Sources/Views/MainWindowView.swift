@@ -1,16 +1,17 @@
 import SwiftUI
+import AppKit
 
 public enum MainTab: String, CaseIterable, Identifiable {
-    case assignments = "Assignments"
-    case diagnostics = "Diagnostics"
+    case devices = "Devices"
+    case checkMouse = "Check Mouse"
     case settings = "Settings"
     
     public var id: String { rawValue }
     
     public var iconName: String {
         switch self {
-        case .assignments: return "slider.horizontal.3"
-        case .diagnostics: return "waveform.path.ecg"
+        case .devices: return "computermouse.fill"
+        case .checkMouse: return "checkmark.shield.fill"
         case .settings: return "gearshape.fill"
         }
     }
@@ -19,7 +20,7 @@ public enum MainTab: String, CaseIterable, Identifiable {
 public struct MainWindowView: View {
     @StateObject private var profileStore = ProfileStore()
     @StateObject private var deviceManager = DeviceManager()
-    @State private var activeTab: MainTab = .assignments
+    @State private var activeTab: MainTab = .devices
     @State private var selectedButton: PhysicalButton? = .frontSide
     @State private var viewMode: MouseViewMode = .side
     
@@ -27,44 +28,49 @@ public struct MainWindowView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Top Toolbar (64pt height)
-            topToolbar
+            // Top Status Bar (60pt height)
+            topBar
             
             Divider().background(Theme.borderSubtle)
             
-            // Main Body: Feature Rail + Context Area
+            // Main 3-Column Body: Left Navigation Rail + Center / Right Content
             HStack(spacing: 0) {
-                // Feature Rail (68pt width)
-                featureRail
+                // Left Navigation Rail (76pt width)
+                leftNavRail
                 
                 Divider().background(Theme.borderSubtle)
                 
                 // Tab Content
                 switch activeTab {
-                case .assignments:
+                case .devices:
                     HStack(spacing: 0) {
-                        AssignmentsView(
-                            profileStore: profileStore,
-                            deviceManager: deviceManager,
-                            selectedButton: $selectedButton
-                        )
-                        
-                        Divider().background(Theme.borderSubtle)
-                        
+                        // Center Stage (Dominant mouse view)
                         DeviceStageView(
                             profileStore: profileStore,
                             deviceManager: deviceManager,
                             selectedButton: $selectedButton,
                             viewMode: $viewMode
                         )
+                        
+                        Divider().background(Theme.borderSubtle)
+                        
+                        // Right Contextual Editor Panel (340pt width)
+                        ContextualEditorView(
+                            profileStore: profileStore,
+                            deviceManager: deviceManager,
+                            button: selectedButton ?? .frontSide
+                        )
                     }
-                case .diagnostics:
-                    DiagnosticsView(
+                case .checkMouse:
+                    CheckMouseView(
                         profileStore: profileStore,
                         deviceManager: deviceManager
                     )
                 case .settings:
-                    settingsPanel
+                    SettingsView(
+                        profileStore: profileStore,
+                        deviceManager: deviceManager
+                    )
                 }
             }
         }
@@ -75,12 +81,12 @@ public struct MainWindowView: View {
         }
     }
     
-    // MARK: - Top Toolbar (64pt)
+    // MARK: - Top Status Bar (60pt)
     
-    private var topToolbar: some View {
+    private var topBar: some View {
         HStack(spacing: 16) {
-            // Device Brand & Name
-            HStack(spacing: 10) {
+            // Device Brand & Status
+            HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Theme.bgCardElevated)
@@ -99,7 +105,7 @@ public struct MainWindowView: View {
                         Circle()
                             .fill(deviceManager.isReceiverConnected ? Theme.statusGreen : Theme.statusOrange)
                             .frame(width: 7, height: 7)
-                        Text(deviceManager.isReceiverConnected ? "2.4GHz Dongle Connected" : "Dongle Searching")
+                        Text(deviceManager.isReceiverConnected ? "Connected via 2.4GHz Receiver" : "Searching for Dongle...")
                             .font(Theme.fontSmall)
                             .foregroundColor(Theme.textSecondary)
                     }
@@ -108,9 +114,9 @@ public struct MainWindowView: View {
             
             Spacer()
             
-            // Profile Selector
+            // Profile Selector Dropdown
             HStack(spacing: 8) {
-                Text("MANUAL PROFILE:")
+                Text("PROFILE:")
                     .font(Theme.fontBadge)
                     .foregroundColor(Theme.textMuted)
                 
@@ -148,54 +154,9 @@ public struct MainWindowView: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.borderSubtle, lineWidth: 1))
                 }
                 .menuStyle(.borderlessButton)
-                
-                // Honest Global Scope indicator
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(Theme.accentCyan.opacity(0.6))
-                        .frame(width: 5, height: 5)
-                    Text("Global Tap")
-                        .font(Theme.fontSmall)
-                        .foregroundColor(Theme.textMuted)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Theme.bgCanvas)
-                .cornerRadius(6)
-                .help("Monitors auxiliary buttons globally across connected mice via macOS CGEventTap.")
             }
             
-            // View Switcher Segment
-            HStack(spacing: 4) {
-                Button(action: {
-                    withAnimation(.snappy(duration: 0.15)) { viewMode = .side }
-                }) {
-                    Text("Side View")
-                        .font(Theme.fontBadge)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(viewMode == .side ? Theme.accentCyan : Theme.bgCard)
-                        .foregroundColor(viewMode == .side ? .black : Theme.textSecondary)
-                        .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                
-                Button(action: {
-                    withAnimation(.snappy(duration: 0.15)) { viewMode = .top }
-                }) {
-                    Text("Top View")
-                        .font(Theme.fontBadge)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(viewMode == .top ? Theme.accentCyan : Theme.bgCard)
-                        .foregroundColor(viewMode == .top ? .black : Theme.textSecondary)
-                        .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.trailing, 8)
-            
-            // Pause Remapping Button
+            // Remapping Pause/Resume Toggle
             Button(action: {
                 withAnimation(.snappy(duration: 0.15)) {
                     profileStore.togglePause()
@@ -208,7 +169,7 @@ public struct MainWindowView: View {
                         .font(Theme.fontSmall)
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+                .padding(.vertical, 7)
                 .background(profileStore.isPaused ? Theme.statusOrange : Theme.bgCardElevated)
                 .foregroundColor(profileStore.isPaused ? .black : Theme.textPrimary)
                 .cornerRadius(8)
@@ -217,13 +178,13 @@ public struct MainWindowView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
-        .frame(height: 64)
+        .frame(height: 60)
         .background(Theme.bgPanel)
     }
     
-    // MARK: - Feature Rail (84pt)
+    // MARK: - Left Navigation Rail (76pt)
     
-    private var featureRail: some View {
+    private var leftNavRail: some View {
         VStack(spacing: 12) {
             ForEach(MainTab.allCases) { tab in
                 Button(action: {
@@ -242,7 +203,7 @@ public struct MainWindowView: View {
                             .fixedSize(horizontal: true, vertical: false)
                             .foregroundColor(activeTab == tab ? Theme.accentCyan : Theme.textMuted)
                     }
-                    .frame(width: 74, height: 56)
+                    .frame(width: 68, height: 56)
                     .background(activeTab == tab ? Theme.bgCardElevated : Color.clear)
                     .cornerRadius(10)
                     .overlay(
@@ -257,55 +218,8 @@ public struct MainWindowView: View {
             Spacer()
         }
         .padding(.top, 16)
-        .frame(width: 86)
+        .frame(width: 76)
         .background(Theme.bgPanel)
-    }
-    
-    // MARK: - Settings Panel
-    
-    private var settingsPanel: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Application Settings")
-                .font(Theme.fontTitle)
-                .foregroundColor(Theme.textPrimary)
-            
-            VStack(alignment: .leading, spacing: 14) {
-                Text("PERIPHERAL CONFIGURATION PERSISTENCE")
-                    .font(Theme.fontBadge)
-                    .foregroundColor(Theme.textMuted)
-                
-                Text("Profiles are stored in local Application Support directory: ~/Library/Application Support/MouseControl/profiles.json")
-                    .font(Theme.fontSmall)
-                    .foregroundColor(Theme.textSecondary)
-                
-                HStack(spacing: 12) {
-                    Button("Restore All Factory Defaults") {
-                        profileStore.load()
-                    }
-                    .font(Theme.fontSmall)
-                    .padding(8)
-                    .background(Theme.bgCard)
-                    .cornerRadius(6)
-                    
-                    Button("Save All Profiles Now") {
-                        profileStore.save()
-                    }
-                    .font(Theme.fontSmall)
-                    .padding(8)
-                    .background(Theme.accentCyan)
-                    .foregroundColor(.black)
-                    .cornerRadius(6)
-                }
-            }
-            .padding(16)
-            .background(Theme.bgCard)
-            .cornerRadius(8)
-            
-            Spacer()
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.bgCanvas)
     }
     
     // MARK: - Engine Bridge Setup
