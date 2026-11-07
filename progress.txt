@@ -21,3 +21,13 @@
 - Action latching from button-down to button-up with stuck-key prevention across mapping changes and pauses.
 - Dedicated background thread with CFRunLoop and NSLock synchronization.
 - Created Tests/TestInputEngine.swift covering 89 assertions across 5 test suites; 100% passing.
+
+[2026-11-07T17:55:00+05:30] M1 Task 2 Completed: Native UI, Visual Stage, and App Packaging:
+- Designed obsidian dark UI matching Logitech G HUB and UI Reference Pack with 64pt top toolbar, 68pt feature rail, 320pt left assignment editor, and interactive device stage.
+- Generated high-resolution transparent cutouts from manufacturer images R11/R12 (Resources/kreo_top_cutout.png, Resources/kreo_side_cutout.png).
+- Created interactive pins and callout boxes for Front Side Button (Button 4) and Rear Side Button (Button 3) with calibrated positions and leader lines.
+- Implemented action assignment editor with Wispr Flow PTT (keycode 61 Right Option), Undo (Cmd+Z), Redo (Shift+Cmd+Z), custom shortcut recorder, and passthrough/disable.
+- Implemented atomic profile persistence to ~/Library/Application Support/MouseControl/profiles.json.
+- Built System Diagnostics view displaying real-time receiver connection, accessibility status, active input engine state, hardware descriptors, and synthetic test triggers.
+- Packaged as standalone signed application bundle (build/MouseControl.app) with NSAccessibilityUsageDescription and NSInputMonitoringUsageDescription.
+- Verified live running application at 1440x900 and 1100x720; captured actual window screenshots (ui_evidence/01_side_assignments.png, ui_evidence/02_top_view.png, ui_evidence/03_diagnostics.png).

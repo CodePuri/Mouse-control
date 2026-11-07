@@ -212,7 +212,7 @@ public final class InputEngine: @unchecked Sendable {
             options: .defaultTap,
             eventsOfInterest: mask,
             callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
-                guard let refcon = refcon else { return Unmanaged.passRetained(event) }
+                guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
                 let engine = Unmanaged<InputEngine>.fromOpaque(refcon).takeUnretainedValue()
                 return engine.handleEvent(proxy: proxy, type: type, event: event)
             },
@@ -229,40 +229,43 @@ public final class InputEngine: @unchecked Sendable {
         let startSemaphore = DispatchSemaphore(value: 0)
 
         let thread = Thread { [weak self] in
-            guard let self = self else { return }
             let currentRunLoop = CFRunLoopGetCurrent()
 
-            self.lock.lock()
-            self.tapRunLoop = currentRunLoop
-            if let source = self.runLoopSource {
+            guard let initialSelf = self else { return }
+            initialSelf.lock.lock()
+            initialSelf.tapRunLoop = currentRunLoop
+            if let source = initialSelf.runLoopSource {
                 CFRunLoopAddSource(currentRunLoop, source, .commonModes)
             }
-            if let tap = self.eventTap {
+            if let tap = initialSelf.eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
-            self._isRunning = true
-            self.lock.unlock()
+            initialSelf._isRunning = true
+            initialSelf.lock.unlock()
 
             startSemaphore.signal()
 
             while true {
-                self.lock.lock()
-                let shouldStop = self.isStopping
-                self.lock.unlock()
+                guard let strongSelf = self else { break }
+                strongSelf.lock.lock()
+                let shouldStop = strongSelf.isStopping
+                strongSelf.lock.unlock()
                 if shouldStop { break }
 
                 CFRunLoopRunInMode(.defaultMode, 0.1, true)
             }
 
-            self.lock.lock()
-            if let source = self.runLoopSource {
-                CFRunLoopRemoveSource(currentRunLoop, source, .commonModes)
+            if let strongSelf = self {
+                strongSelf.lock.lock()
+                if let source = strongSelf.runLoopSource {
+                    CFRunLoopRemoveSource(currentRunLoop, source, .commonModes)
+                }
+                if let tap = strongSelf.eventTap {
+                    CGEvent.tapEnable(tap: tap, enable: false)
+                }
+                strongSelf._isRunning = false
+                strongSelf.lock.unlock()
             }
-            if let tap = self.eventTap {
-                CGEvent.tapEnable(tap: tap, enable: false)
-            }
-            self._isRunning = false
-            self.lock.unlock()
         }
 
         thread.name = "com.codepuri.mousecontrol.inputengine"
@@ -333,18 +336,18 @@ public final class InputEngine: @unchecked Sendable {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
             lock.unlock()
-            return Unmanaged.passRetained(event)
+            return Unmanaged.passUnretained(event)
         }
 
         // Loop prevention: ignore any incoming event tagged with our marker
         let marker = event.getIntegerValueField(.eventSourceUserData)
         if marker == InputEngine.magicEventMarker {
-            return Unmanaged.passRetained(event)
+            return Unmanaged.passUnretained(event)
         }
 
         // Only handle otherMouseDown and otherMouseUp
         guard type == .otherMouseDown || type == .otherMouseUp else {
-            return Unmanaged.passRetained(event)
+            return Unmanaged.passUnretained(event)
         }
 
         let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
@@ -355,12 +358,12 @@ public final class InputEngine: @unchecked Sendable {
         if type == .otherMouseDown {
             if paused {
                 lock.unlock()
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
 
             guard let action = self.mappings[buttonNumber], action != .passthrough else {
                 lock.unlock()
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
 
             // Latch action on button down
@@ -400,7 +403,7 @@ public final class InputEngine: @unchecked Sendable {
             // Check if there is a latched action from button down
             guard let latched = self.latchedActions.removeValue(forKey: buttonNumber) else {
                 lock.unlock()
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
             lock.unlock()
 
@@ -425,7 +428,7 @@ public final class InputEngine: @unchecked Sendable {
                     postSyntheticEvent(synth)
                 }
             case .passthrough:
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
 
             onButtonEventHandled?(buttonNumber, type, latched)
@@ -434,7 +437,51 @@ public final class InputEngine: @unchecked Sendable {
         }
 
         lock.unlock()
-        return Unmanaged.passRetained(event)
+        return Unmanaged.passUnretained(event)
+    }
+
+    /// Simulate an action (press and immediate release) for testing or user preview.
+    public func simulateAction(_ action: InputAction) {
+        switch action {
+        case .disabled, .passthrough:
+            break
+        case .wisprFlowPTT(let keyCode):
+            if let down = InputEngine.createSyntheticKeyEvent(keyCode: keyCode, isDown: true) {
+                postSyntheticEvent(down)
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                if let up = InputEngine.createSyntheticKeyEvent(keyCode: keyCode, isDown: false) {
+                    self?.postSyntheticEvent(up)
+                }
+            }
+        case .shortcut(let keyCode, let flags):
+            if let down = InputEngine.createSyntheticKeyEvent(keyCode: keyCode, flags: flags, isDown: true) {
+                postSyntheticEvent(down)
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                if let up = InputEngine.createSyntheticKeyEvent(keyCode: keyCode, flags: flags, isDown: false) {
+                    self?.postSyntheticEvent(up)
+                }
+            }
+        case .undo:
+            if let down = InputEngine.createSyntheticKeyEvent(keyCode: 6, flags: .maskCommand, isDown: true) {
+                postSyntheticEvent(down)
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                if let up = InputEngine.createSyntheticKeyEvent(keyCode: 6, flags: .maskCommand, isDown: false) {
+                    self?.postSyntheticEvent(up)
+                }
+            }
+        case .redo:
+            if let down = InputEngine.createSyntheticKeyEvent(keyCode: 6, flags: [.maskCommand, .maskShift], isDown: true) {
+                postSyntheticEvent(down)
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                if let up = InputEngine.createSyntheticKeyEvent(keyCode: 6, flags: [.maskCommand, .maskShift], isDown: false) {
+                    self?.postSyntheticEvent(up)
+                }
+            }
+        }
     }
 
     // MARK: - Synthetic Key Helpers

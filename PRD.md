@@ -11,7 +11,7 @@
   - Wispr Flow inspection (`config.json`: keycode 61 Right Option candidate for PTT emulation).
   - Explicit bounded 30s calibration capture (`Tools/calibrate_buttons`) with IOKit device matching and honest global event stream labeling. No incidental typed text recorded.
   - Permissions model: CLI probe accessibility verified, but full .app bundle requires independent Info.plist declarations and runtime permission state verification.
-- [ ] **M1: Usable Kreo Mac Application**
+- [x] **M1: Usable Kreo Mac Application**
   - Native SwiftUI Mac App (`MouseControl.app`) matching G HUB / Options+ reference design.
   - Interactive device stage with Kreo Chimera V2 high-res assets (Top and Left Side views).
   - Selectable hotspots for Front Side Button and Rear Side Button with live press indicators.

@@ -1,0 +1,55 @@
+#!/bin/bash
+set -e
+
+APP_DIR="build/MouseControl.app"
+CONTENTS="$APP_DIR/Contents"
+MACOS="$CONTENTS/MacOS"
+RESOURCES="$CONTENTS/Resources"
+
+mkdir -p "$MACOS"
+mkdir -p "$RESOURCES/Resources"
+
+cp build/MouseControl "$MACOS/MouseControl"
+chmod +x "$MACOS/MouseControl"
+
+cp Resources/kreo_top_cutout.png "$RESOURCES/Resources/kreo_top_cutout.png"
+cp Resources/kreo_side_cutout.png "$RESOURCES/Resources/kreo_side_cutout.png"
+
+cat << 'PLIST' > "$CONTENTS/Info.plist"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>MouseControl</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.codepuri.mousecontrol</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>MouseControl</string>
+    <key>CFBundleDisplayName</key>
+    <string>Kreo Mouse Control</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>LSUIElement</key>
+    <false/>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>Kreo Mouse Control requires Accessibility to remap mouse side buttons and dispatch configured actions such as Wispr Flow dictation.</string>
+    <key>NSInputMonitoringUsageDescription</key>
+    <string>Kreo Mouse Control monitors mouse auxiliary buttons to suppress unwanted browser navigation and trigger assigned actions.</string>
+</dict>
+</plist>
+PLIST
+
+echo "Successfully built and packaged $APP_DIR"
