@@ -38,9 +38,9 @@
 1. **Physical Button Identification:**
    - Front Side Button: physical forward button (standard macOS `otherMouseDown` button 4).
    - Rear Side Button: physical back button (standard macOS `otherMouseDown` button 3).
-2. **Wispr Flow PTT Protocol:**
-   - Wispr Flow is configured for Push-to-Talk via virtual keycode **61** (`kVK_RightOption`).
-   - Push-to-Talk action: On mouse button press down -> dispatch synthetic keycode 61 key-down; On mouse button release -> dispatch synthetic keycode 61 key-up.
-   - Suppression: Event tap consumes `otherMouseDown` and `otherMouseUp` for buttons 3 and 4 so the browser does NOT navigate Back/Forward while dictating!
-3. **Application Independence:**
-   - Active `CGEventTap` runs globally across macOS, allowing Wispr Flow dictation while user is typing in TextEdit, Chrome, Brave, Terminal, or any other app.
+2. **Wispr Flow PTT Protocol Candidate:**
+   - Wispr Flow is currently configured with virtual keycode **61** (`kVK_RightOption`) for PTT. Emulating this keycode on side button press/release is treated as a candidate requiring testing.
+   - Suppression: Event tap consumes `otherMouseDown` and `otherMouseUp` for configured buttons so default actions (such as browser Back/Forward) are suppressed where remapped.
+3. **Application & Device Scope:**
+   - Active `CGEventTap` runs at the session level. Device attribution limitation is honestly documented (global mouse fallback when physical attribution cannot be established by Quartz).
+   - Vendor HID interface (`0xFF01`) has unverified purpose; no guessed reports or hardware writes are attempted.

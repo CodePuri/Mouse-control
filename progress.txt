@@ -5,3 +5,10 @@
 - Permissions: Accessibility (AXIsProcessTrusted) verified active.
 - Wispr Flow: Verified installed at /Applications/Wispr Flow.app with PTT mapped to keycode 61 (Right Option).
 - Background Button Logger: Compiled and actively capturing mouse events to /tmp/kreo_button_log.txt.
+
+[2026-11-07T17:18:10+05:30] M0 Evidence Corrections Applied:
+- Stopped background logger (Task 95 killed); removed /tmp/kreo_button_log.txt with no incidental text retained.
+- Built Tools/calibrate_buttons with 30s auto-shutdown, device-attributed IOKit matching for 0x248a:0x5b4a, and an honestly labeled global CGEventTap auxiliary mouse filter.
+- Corrected Wispr Flow conclusion: keycode 61 Right Option shortcut emulation is treated as a candidate requiring testing, not proof that direct binding is impossible.
+- Corrected Vendor HID interface conclusion: UsagePage 0xFF01 is treated as unverified purpose until protocol evidence is proven; no guessed reports will be sent.
+- Permission status note: CLI probe accessibility does not prove .app bundle readiness; standalone .app bundle must declare entitlements, usage descriptions, and handle active permission onboarding.
