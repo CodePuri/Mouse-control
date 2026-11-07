@@ -20,11 +20,11 @@ public enum MainTab: String, CaseIterable, Identifiable {
 public struct MainWindowView: View {
     @StateObject private var profileStore = ProfileStore()
     @StateObject private var deviceManager = DeviceManager()
+    @ObservedObject private var permissionManager = PermissionManager.shared
     @State private var activeTab: MainTab = .devices
     @State private var selectedButton: PhysicalButton? = .frontSide
     @State private var viewMode: MouseViewMode = .side
     @State private var isRecordingShortcut: Bool = false
-    @State private var isAccessibilityGranted: Bool = AXIsProcessTrusted()
     @State private var showAssignmentsPalette: Bool = true
     @State private var searchCommandText: String = ""
     @State private var paletteSubtab: String = "COMMANDS"
@@ -38,9 +38,9 @@ public struct MainWindowView: View {
             // Top Status Bar (60pt height)
             topBar
             
-            // Accessibility Warning Banner (Prominent when permission missing or revoked)
-            if !isAccessibilityGranted {
-                accessibilityWarningBanner
+            // Multi-Layer Permission & Authorization Warning Banner
+            if !permissionManager.isFullyAuthorized {
+                permissionWarningBanner
             }
             
             Divider().background(Theme.borderSubtle)
@@ -56,7 +56,7 @@ public struct MainWindowView: View {
                 switch activeTab {
                 case .devices:
                     HStack(spacing: 0) {
-                        // G HUB Style Commands Palette (260pt)
+                        // G HUB Style Commands Palette (280pt)
                         if showAssignmentsPalette {
                             gHubAssignmentsPalette
                             Divider().background(Theme.borderSubtle)
@@ -98,46 +98,51 @@ public struct MainWindowView: View {
         .background(Theme.bgCanvas)
         .onAppear {
             setupEngineBridge()
-            checkAccessibility()
+            checkPermissions()
         }
         .onReceive(permCheckTimer) { _ in
-            checkAccessibility()
+            checkPermissions()
         }
     }
     
-    // MARK: - Accessibility Check & Warning Banner
+    // MARK: - Multi-Layer Permission Verification & Dynamic Banner
     
-    private func checkAccessibility() {
-        let trusted = AXIsProcessTrusted()
-        if isAccessibilityGranted != trusted {
-            isAccessibilityGranted = trusted
-            if trusted && !profileStore.inputEngine.isRunning {
-                _ = profileStore.inputEngine.start()
-            }
+    private func checkPermissions() {
+        permissionManager.refresh(activeEngineRunning: profileStore.inputEngine.isRunning)
+        if permissionManager.isFullyAuthorized && !profileStore.inputEngine.isRunning {
+            _ = profileStore.inputEngine.start()
         }
     }
     
-    private var accessibilityWarningBanner: some View {
+    private var permissionWarningBanner: some View {
         HStack(spacing: 14) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 20))
                 .foregroundColor(Theme.statusOrange)
             
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Accessibility Permission Required for Side Button Remapping")
+            VStack(alignment: .leading, spacing: 3) {
+                Text("\(PermissionManager.permissionSectionName) Required (\(PermissionManager.osDisplayName))")
                     .font(Theme.fontHeader)
                     .foregroundColor(Theme.textPrimary)
                 
-                Text("If you see '⃠ Kreo Mouse Control' with a prohibition sign in System Settings, click '—' to remove the broken entry, then toggle Kreo Mouse Control ON.")
+                Text(PermissionManager.recoveryInstructions)
                     .font(Theme.fontSmall)
                     .foregroundColor(Theme.textSecondary)
+                
+                // Verified Multi-Layer Badges
+                HStack(spacing: 8) {
+                    layerBadge(name: PermissionManager.permissionSectionShortName, ok: permissionManager.deviceControlTrusted)
+                    layerBadge(name: "Input Monitoring", ok: permissionManager.inputMonitoringAuthorized)
+                    layerBadge(name: "Event Posting", ok: permissionManager.eventPostingAuthorized)
+                    layerBadge(name: "Event Tap", ok: permissionManager.eventTapFunctional)
+                }
+                .padding(.top, 2)
             }
             
             Spacer()
             
             Button("Grant Permission") {
-                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                _ = AXIsProcessTrustedWithOptions(options)
+                permissionManager.requestPermissions()
             }
             .buttonStyle(.plain)
             .font(Theme.fontSmall)
@@ -148,9 +153,7 @@ public struct MainWindowView: View {
             .cornerRadius(6)
             
             Button("Open Settings") {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                    NSWorkspace.shared.open(url)
-                }
+                PermissionManager.openSystemSettingsPermissionPane()
             }
             .buttonStyle(.plain)
             .font(Theme.fontSmall)
@@ -164,6 +167,22 @@ public struct MainWindowView: View {
         .padding(.vertical, 10)
         .background(Theme.statusOrange.opacity(0.15))
         .overlay(Rectangle().frame(height: 1).foregroundColor(Theme.statusOrange.opacity(0.4)), alignment: .bottom)
+    }
+    
+    @ViewBuilder
+    private func layerBadge(name: String, ok: Bool) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(ok ? Theme.statusGreen : Theme.statusOrange)
+                .frame(width: 5, height: 5)
+            Text("\(name): \(ok ? "Verified" : "Pending")")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(ok ? Theme.statusGreen : Theme.statusOrange)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Theme.bgCanvas.opacity(0.6))
+        .cornerRadius(4)
     }
     
     // MARK: - Top Status Bar (60pt)

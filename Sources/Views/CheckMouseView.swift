@@ -527,8 +527,8 @@ public struct CheckMouseView: View {
                 
                 diagnosticTip(
                     num: "4",
-                    title: "Check Accessibility Permissions",
-                    body: "Ensure MouseControl is granted Accessibility permissions in System Settings -> Privacy & Security -> Accessibility."
+                    title: "Check \(PermissionManager.permissionSectionName) Permissions",
+                    body: "Ensure Kreo Mouse Control is granted permissions in \(PermissionManager.settingsPathDescription)."
                 )
             }
             

@@ -139,57 +139,153 @@ public struct SettingsView: View {
     // MARK: - Permissions Section
     
     private var permissionsSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "System Permissions", subtitle: "MouseControl requires Accessibility permissions to intercept and remap auxiliary mouse buttons.")
+        let pm = PermissionManager.shared
+        return VStack(alignment: .leading, spacing: 20) {
+            sectionHeader(
+                title: "System Permissions (\(PermissionManager.osDisplayName))",
+                subtitle: "Kreo Mouse Control requires \(PermissionManager.permissionSectionName) and Input Monitoring to intercept side buttons and dispatch shortcuts."
+            )
             
             VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(Theme.statusGreen)
-                        .frame(width: 10, height: 10)
+                // Multi-Layer Verification Status Cards
+                VStack(spacing: 10) {
+                    permissionLayerRow(
+                        title: PermissionManager.permissionSectionName,
+                        subtitle: "Device trust for synthetic event posting and application control",
+                        isPassed: pm.deviceControlTrusted,
+                        icon: "hand.raised.fill"
+                    )
                     
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Accessibility Permission Granted")
-                            .font(Theme.fontHeader)
-                            .foregroundColor(Theme.textPrimary)
-                        
-                        Text("CGEventTap is authorized to capture input events.")
-                            .font(Theme.fontSmall)
-                            .foregroundColor(Theme.textSecondary)
+                    permissionLayerRow(
+                        title: "Input Monitoring (Listen Event Access)",
+                        subtitle: "Preflight check for global mouse event stream observation",
+                        isPassed: pm.inputMonitoringAuthorized,
+                        icon: "waveform.path.ecg"
+                    )
+                    
+                    permissionLayerRow(
+                        title: "Event Posting (Keystroke Injection)",
+                        subtitle: "Authorization to synthesize Wispr Flow Right Option and Undo keys",
+                        isPassed: pm.eventPostingAuthorized,
+                        icon: "keyboard.badge.ellipsis"
+                    )
+                    
+                    permissionLayerRow(
+                        title: "Active CGEventTap Service",
+                        subtitle: "Verified runtime event tap handle in WindowServer",
+                        isPassed: pm.eventTapFunctional,
+                        icon: "bolt.horizontal.circle.fill"
+                    )
+                }
+                
+                HStack(spacing: 12) {
+                    Button(action: {
+                        pm.requestPermissions()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.shield")
+                            Text("Request Permissions")
+                        }
+                        .font(Theme.fontSmall)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Theme.accentCyan)
+                        .foregroundColor(.black)
+                        .cornerRadius(6)
                     }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: {
+                        PermissionManager.openSystemSettingsPermissionPane()
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "gearshape")
+                            Text("Open \(PermissionManager.permissionSectionShortName) Settings")
+                        }
+                        .font(Theme.fontSmall)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Theme.bgCardElevated)
+                        .foregroundColor(Theme.textPrimary)
+                        .cornerRadius(6)
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.borderSubtle, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
                     
                     Spacer()
                     
-                    Button("Open System Settings") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                            NSWorkspace.shared.open(url)
+                    Button(action: {
+                        pm.refresh()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Re-verify")
                         }
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textSecondary)
                     }
-                    .font(Theme.fontSmall)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Theme.bgCardElevated)
-                    .cornerRadius(6)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Theme.borderSubtle, lineWidth: 1))
+                    .buttonStyle(.plain)
                 }
                 
                 Divider().background(Theme.borderSubtle)
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("WHY ACCESSIBILITY IS REQUIRED")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("WHY \(PermissionManager.permissionSectionName.uppercased()) IS REQUIRED")
                         .font(Theme.fontBadge)
                         .foregroundColor(Theme.textMuted)
                     
-                    Text("macOS isolates peripheral button clicks to prevent unauthorized interception. The Accessibility API allows MouseControl to listen for auxiliary side buttons (Buttons 3 & 4) and suppress default browser navigation.")
+                    Text("macOS isolates peripheral hardware events to protect user privacy. To remap auxiliary buttons (Button 4 → Wispr Flow PTT, Button 3 → Undo) without modifying mouse firmware, Kreo Mouse Control registers a low-level CGEventTap to suppress unwanted browser navigation and post your configured shortcuts.")
                         .font(Theme.fontSmall)
                         .foregroundColor(Theme.textSecondary)
                         .lineSpacing(2)
+                    
+                    Text(PermissionManager.recoveryInstructions)
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.statusOrange)
+                        .padding(.top, 4)
                 }
             }
             .padding(18)
             .background(Theme.bgCard)
             .cornerRadius(10)
         }
+    }
+    
+    @ViewBuilder
+    private func permissionLayerRow(title: String, subtitle: String, isPassed: Bool, icon: String) -> some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(isPassed ? Theme.statusGreen : Theme.statusOrange)
+                .frame(width: 8, height: 8)
+            
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(isPassed ? Theme.accentCyan : Theme.textMuted)
+                .frame(width: 20)
+            
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(Theme.fontHeader)
+                    .foregroundColor(Theme.textPrimary)
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundColor(Theme.textSecondary)
+            }
+            
+            Spacer()
+            
+            Text(isPassed ? "VERIFIED" : "PENDING")
+                .font(Theme.fontBadge)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(isPassed ? Theme.statusGreen.opacity(0.15) : Theme.statusOrange.opacity(0.15))
+                .foregroundColor(isPassed ? Theme.statusGreen : Theme.statusOrange)
+                .cornerRadius(4)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Theme.bgCardElevated)
+        .cornerRadius(6)
     }
     
     // MARK: - Devices Section

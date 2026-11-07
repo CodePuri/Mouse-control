@@ -61,7 +61,7 @@ cat << 'PLIST' > "$CONTENTS/Info.plist"
     <key>LSUIElement</key>
     <false/>
     <key>NSAccessibilityUsageDescription</key>
-    <string>Kreo Mouse Control requires Accessibility to remap mouse side buttons and dispatch configured actions such as Wispr Flow dictation.</string>
+    <string>Kreo Mouse Control requires Device Control and Accessibility permissions to remap mouse side buttons and dispatch configured actions such as Wispr Flow dictation.</string>
     <key>NSInputMonitoringUsageDescription</key>
     <string>Kreo Mouse Control monitors mouse auxiliary buttons to suppress unwanted browser navigation and trigger assigned actions.</string>
 </dict>

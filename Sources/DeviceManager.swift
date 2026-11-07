@@ -175,7 +175,7 @@ public enum CalibrationSessionState: Equatable {
             return "Verified Physical Buttons: Front Button is Quartz \(front), Rear Button is Quartz \(rear)."
         case .timedOut(let pos, let front, let rear):
             if !pos {
-                return "No mouse events were detected. Check Accessibility permission in System Settings."
+                return "No mouse events were detected. Check \(PermissionManager.permissionSectionName) permission in System Settings."
             } else if !front && !rear {
                 return "Pipeline is healthy (positive control passed), but no side button events were received across the 2.4GHz receiver."
             } else {

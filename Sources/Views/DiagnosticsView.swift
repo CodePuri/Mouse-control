@@ -38,9 +38,9 @@ public struct DiagnosticsView: View {
                         )
                         
                         statusTile(
-                            title: "ACCESSIBILITY PERMISSION",
-                            value: AXIsProcessTrusted() ? "Authorized" : "Not Granted",
-                            statusColor: AXIsProcessTrusted() ? Theme.statusGreen : Theme.statusOrange,
+                            title: "\(PermissionManager.permissionSectionShortName.uppercased()) (\(PermissionManager.isMacOS27OrNewer ? "MACOS 27" : "LEGACY"))",
+                            value: PermissionManager.shared.isFullyAuthorized ? "Fully Authorized" : "Pending Check",
+                            statusColor: PermissionManager.shared.isFullyAuthorized ? Theme.statusGreen : Theme.statusOrange,
                             icon: "lock.shield.fill"
                         )
                         
