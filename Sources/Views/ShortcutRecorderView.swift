@@ -105,9 +105,10 @@ public enum KeyCodeHelper {
 public struct ShortcutRecorderView: View {
     let button: PhysicalButton
     @ObservedObject var profileStore: ProfileStore
+    @Binding var isRecordingExternal: Bool
     var onAutoRecorded: (() -> Void)? = nil
     
-    public enum RecorderState {
+    public enum RecorderState: Equatable {
         case idle
         case recording
         case captured(String)
@@ -121,10 +122,12 @@ public struct ShortcutRecorderView: View {
     public init(
         button: PhysicalButton,
         profileStore: ProfileStore,
+        isRecordingExternal: Binding<Bool> = .constant(false),
         onAutoRecorded: (() -> Void)? = nil
     ) {
         self.button = button
         self.profileStore = profileStore
+        self._isRecordingExternal = isRecordingExternal
         self.onAutoRecorded = onAutoRecorded
     }
     
@@ -168,7 +171,7 @@ public struct ShortcutRecorderView: View {
                         .fill(boxBackgroundColor)
                     
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(boxBorderColor, lineWidth: isRecording ? 2 : 1)
+                        .stroke(boxBorderColor, lineWidth: isRecordingActive ? 2 : 1)
                         .scaleEffect(isPulsing ? 1.02 : 1.0)
                     
                     HStack(spacing: 12) {
@@ -214,16 +217,23 @@ public struct ShortcutRecorderView: View {
             .help("Click to record a new keyboard shortcut for \(button.displayName)")
             
             // Helpful micro-instruction
-            Text(isRecording ? "Press any key, modifier combo, or hold Right Option for Wispr Flow." : "Click box above to assign any key or shortcut automatically.")
+            Text(isRecordingActive ? "Press any key, modifier combo, or hold Right Option for Wispr Flow." : "Click box above to assign any key or shortcut automatically.")
                 .font(.system(size: 11))
-                .foregroundColor(isRecording ? Theme.accentCyan : Theme.textMuted)
+                .foregroundColor(isRecordingActive ? Theme.accentCyan : Theme.textMuted)
+        }
+        .onChange(of: isRecordingExternal) { _, active in
+            if active && state != .recording {
+                startRecording()
+            } else if !active && state == .recording {
+                cancelRecording()
+            }
         }
         .onDisappear {
             stopMonitoring()
         }
     }
     
-    private var isRecording: Bool {
+    private var isRecordingActive: Bool {
         if case .recording = state { return true }
         return false
     }
@@ -329,6 +339,7 @@ public struct ShortcutRecorderView: View {
         state = .recording
         isPulsing = true
         pendingModifierKeyCode = nil
+        isRecordingExternal = true
         
         stopMonitoring()
         
@@ -342,6 +353,7 @@ public struct ShortcutRecorderView: View {
     
     public func cancelRecording() {
         stopMonitoring()
+        isRecordingExternal = false
         withAnimation(.snappy(duration: 0.2)) {
             state = .idle
             isPulsing = false
@@ -442,6 +454,7 @@ public struct ShortcutRecorderView: View {
     
     private func commitAction(_ action: StoredAction, display: String) {
         stopMonitoring()
+        isRecordingExternal = false
         profileStore.setAssignment(button: button, action: action)
         
         withAnimation(.snappy(duration: 0.2)) {

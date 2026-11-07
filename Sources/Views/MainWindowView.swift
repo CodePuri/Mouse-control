@@ -23,6 +23,7 @@ public struct MainWindowView: View {
     @State private var activeTab: MainTab = .devices
     @State private var selectedButton: PhysicalButton? = .frontSide
     @State private var viewMode: MouseViewMode = .side
+    @State private var isRecordingShortcut: Bool = false
     
     public init() {}
     
@@ -49,7 +50,8 @@ public struct MainWindowView: View {
                             profileStore: profileStore,
                             deviceManager: deviceManager,
                             selectedButton: $selectedButton,
-                            viewMode: $viewMode
+                            viewMode: $viewMode,
+                            isRecording: $isRecordingShortcut
                         )
                         
                         Divider().background(Theme.borderSubtle)
@@ -58,7 +60,8 @@ public struct MainWindowView: View {
                         ContextualEditorView(
                             profileStore: profileStore,
                             deviceManager: deviceManager,
-                            button: selectedButton ?? .frontSide
+                            button: selectedButton ?? .frontSide,
+                            isRecording: $isRecordingShortcut
                         )
                     }
                 case .checkMouse:

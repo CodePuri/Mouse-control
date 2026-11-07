@@ -12,17 +12,20 @@ public struct DeviceStageView: View {
     @ObservedObject var deviceManager: DeviceManager
     @Binding var selectedButton: PhysicalButton?
     @Binding var viewMode: MouseViewMode
+    @Binding var isRecording: Bool
     
     public init(
         profileStore: ProfileStore,
         deviceManager: DeviceManager,
         selectedButton: Binding<PhysicalButton?>,
-        viewMode: Binding<MouseViewMode>
+        viewMode: Binding<MouseViewMode>,
+        isRecording: Binding<Bool> = .constant(false)
     ) {
         self.profileStore = profileStore
         self.deviceManager = deviceManager
         self._selectedButton = selectedButton
         self._viewMode = viewMode
+        self._isRecording = isRecording
     }
     
     public var body: some View {
@@ -261,6 +264,7 @@ public struct DeviceStageView: View {
         .onTapGesture {
             withAnimation(.snappy(duration: 0.2)) {
                 selectedButton = button
+                isRecording = true
             }
         }
     }
@@ -274,6 +278,7 @@ public struct DeviceStageView: View {
         Button(action: {
             withAnimation(.snappy(duration: 0.2)) {
                 selectedButton = button
+                isRecording = true
             }
         }) {
             VStack(alignment: .leading, spacing: 4) {

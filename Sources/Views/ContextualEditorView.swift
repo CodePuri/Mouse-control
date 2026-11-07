@@ -5,17 +5,20 @@ public struct ContextualEditorView: View {
     @ObservedObject var profileStore: ProfileStore
     @ObservedObject var deviceManager: DeviceManager
     let button: PhysicalButton
+    @Binding var isRecording: Bool
     var onDismiss: (() -> Void)? = nil
     
     public init(
         profileStore: ProfileStore,
         deviceManager: DeviceManager,
         button: PhysicalButton,
+        isRecording: Binding<Bool> = .constant(false),
         onDismiss: (() -> Void)? = nil
     ) {
         self.profileStore = profileStore
         self.deviceManager = deviceManager
         self.button = button
+        self._isRecording = isRecording
         self.onDismiss = onDismiss
     }
     
@@ -94,7 +97,8 @@ public struct ContextualEditorView: View {
                     // Immediate Shortcut Recorder
                     ShortcutRecorderView(
                         button: button,
-                        profileStore: profileStore
+                        profileStore: profileStore,
+                        isRecordingExternal: $isRecording
                     )
                     
                     Divider().background(Theme.borderSubtle)
