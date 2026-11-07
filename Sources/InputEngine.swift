@@ -415,6 +415,12 @@ public final class InputEngine: @unchecked Sendable {
                 return Unmanaged.passUnretained(event)
             }
 
+            // Deduplication: If already latched (e.g. triggered via IOHID), suppress and avoid duplicate key-down
+            if self.latchedActions[buttonNumber] != nil {
+                lock.unlock()
+                return nil
+            }
+
             // Latch action on button down
             self.latchedActions[buttonNumber] = action
             lock.unlock()
@@ -493,6 +499,8 @@ public final class InputEngine: @unchecked Sendable {
     /// Used by multi-interface IOHID telemetry (e.g. Consumer controls AC Back 0x224 / AC Forward 0x225
     /// or raw hardware button reports) so actions fire even if Quartz CGEventTap does not receive them.
     public func triggerAction(forButton buttonNumber: Int, isDown: Bool) {
+        // Immediate safety barrier: Buttons 0, 1, 2 must never be remapped
+        guard buttonNumber >= 3 else { return }
         lock.lock()
         if _isPaused || _isCalibrating {
             lock.unlock()
@@ -501,6 +509,11 @@ public final class InputEngine: @unchecked Sendable {
 
         if isDown {
             guard let action = self.mappings[buttonNumber], action != .passthrough else {
+                lock.unlock()
+                return
+            }
+            // Deduplication: If already latched (e.g. triggered via Quartz), do not double-dispatch
+            if self.latchedActions[buttonNumber] != nil {
                 lock.unlock()
                 return
             }

@@ -421,6 +421,24 @@ func testDirectActionTriggering() {
     engine.triggerAction(forButton: 4, isDown: true)
     expectEqual(postedEvents.count, 4, "No events dispatched when engine is paused")
     engine.resume()
+
+    // 7.5 Deduplication between Quartz and IOHID (No double-dispatch)
+    postedEvents.removeAll()
+    let qEvent = InputEngine.createMouseEvent(type: .otherMouseDown, buttonNumber: 4)!
+    let res = engine.handleEvent(proxy: nil, type: .otherMouseDown, event: qEvent)
+    expect(res == nil, "Quartz event suppressed")
+    expectEqual(postedEvents.count, 1, "Quartz posted 1 key-down")
+    // Simulate IOHID concurrent press
+    engine.triggerAction(forButton: 4, isDown: true)
+    expectEqual(postedEvents.count, 1, "IOHID did NOT duplicate key-down when Quartz already latched")
+
+    // Release via IOHID
+    engine.triggerAction(forButton: 4, isDown: false)
+    expectEqual(postedEvents.count, 2, "Key-up posted on release")
+    // Second release via Quartz
+    let qEventUp = InputEngine.createMouseEvent(type: .otherMouseUp, buttonNumber: 4)!
+    _ = engine.handleEvent(proxy: nil, type: .otherMouseUp, event: qEventUp)
+    expectEqual(postedEvents.count, 2, "Quartz did NOT duplicate key-up when IOHID already released")
 }
 
 // MARK: - Main Runner
