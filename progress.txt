@@ -1,0 +1,7 @@
+[2026-11-07T17:04:40+05:30] Initialized PRD.md and progress.txt for feat/kreo-mac-mvp.
+[2026-11-07T17:04:40+05:30] M0 Completed:
+- Environment: macOS 27.3 arm64, Swift 6.4.2, Xcode 26.6 available.
+- Receiver: 0x248a:0x5b4a (K Chimera USB Receiver) detected with 3 HID collections (Vendor 0xFF01, Mouse Usage 2, Keyboard Usage 6).
+- Permissions: Accessibility (AXIsProcessTrusted) verified active.
+- Wispr Flow: Verified installed at /Applications/Wispr Flow.app with PTT mapped to keycode 61 (Right Option).
+- Background Button Logger: Compiled and actively capturing mouse events to /tmp/kreo_button_log.txt.
