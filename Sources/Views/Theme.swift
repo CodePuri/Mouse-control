@@ -20,3 +20,22 @@ public enum Theme {
     public static let fontSmall = Font.system(size: 11, weight: .medium, design: .default)
     public static let fontBadge = Font.system(size: 10, weight: .bold, design: .monospaced)
 }
+
+/// Fallback property wrapper for SwiftUI.State that bypasses missing SwiftUIMacros plugin in Command Line Tools
+@propertyWrapper
+public struct UIState<Value>: DynamicProperty {
+    private var state: SwiftUI.State<Value>
+
+    public init(wrappedValue: Value) {
+        self.state = SwiftUI.State(initialValue: wrappedValue)
+    }
+
+    public var wrappedValue: Value {
+        get { state.wrappedValue }
+        nonmutating set { state.wrappedValue = newValue }
+    }
+
+    public var projectedValue: SwiftUI.Binding<Value> {
+        state.projectedValue
+    }
+}

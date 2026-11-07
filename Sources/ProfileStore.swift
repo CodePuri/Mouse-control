@@ -231,6 +231,8 @@ public final class ProfileStore: ObservableObject {
     }
     
     public func setAssignment(button: PhysicalButton, action: StoredAction) {
+        // Immediate safety: Buttons 0, 1, 2 must never be remapped
+        guard button.rawValue >= 3 else { return }
         undoHistory.append(activeProfile)
         var current = activeProfile
         current.assignments[button.rawValue] = action
@@ -280,6 +282,8 @@ public final class ProfileStore: ObservableObject {
     public func syncToEngine() {
         var engineMappings: [Int: InputAction] = [:]
         for (buttonNum, stored) in activeProfile.assignments {
+            // Immediate safety barrier: strictly ignore any buttons < 3 (0, 1, 2)
+            guard buttonNum >= 3 else { continue }
             engineMappings[buttonNum] = stored.toInputAction()
         }
         inputEngine.setMappings(engineMappings)
@@ -302,8 +306,12 @@ public final class ProfileStore: ObservableObject {
                 let data = try Data(contentsOf: storageURL)
                 let decoded = try JSONDecoder().decode([DeviceProfile].self, from: data)
                 if !decoded.isEmpty {
-                    self.profiles = decoded
-                    if let defaultP = decoded.first(where: { $0.isDefault }) ?? decoded.first {
+                    self.profiles = decoded.map { profile in
+                        var clean = profile
+                        clean.assignments = profile.assignments.filter { $0.key >= 3 }
+                        return clean
+                    }
+                    if let defaultP = self.profiles.first(where: { $0.isDefault }) ?? self.profiles.first {
                         self.activeProfileId = defaultP.id
                     }
                     return

@@ -114,10 +114,10 @@ public struct ShortcutRecorderView: View {
         case captured(String)
     }
     
-    @State private var state: RecorderState = .idle
-    @State private var localMonitor: Any? = nil
-    @State private var pendingModifierKeyCode: UInt16? = nil
-    @State private var isPulsing: Bool = false
+    @UIState private var state: RecorderState = .idle
+    @UIState private var localMonitor: Any? = nil
+    @UIState private var pendingModifierKeyCode: UInt16? = nil
+    @UIState private var isPulsing: Bool = false
     
     public init(
         button: PhysicalButton,

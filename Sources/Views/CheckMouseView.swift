@@ -14,19 +14,44 @@ public struct CheckMouseView: View {
         deviceManager.isReceiverConnected
     }
     
-    private var hasPressedAnyButton: Bool {
-        deviceManager.lastPressedButton != nil
+    private var isStep3Passed: Bool {
+        if case .completed(let front, let rear) = deviceManager.calibrationState {
+            return front >= 3 && rear >= 3 && front != rear
+        }
+        return false
+    }
+    
+    private var hasDetectedSideButton: Bool {
+        if let btn = deviceManager.lastPressedButton, btn >= 3 {
+            return true
+        }
+        if let front = deviceManager.detectedFrontButton, front >= 3 {
+            return true
+        }
+        if let rear = deviceManager.detectedRearButton, rear >= 3 {
+            return true
+        }
+        return false
     }
     
     private var detectedSideButtonName: String? {
-        if deviceManager.detectedFrontButton == 4 || deviceManager.lastPressedButton == 4 {
-            return "Front Side Button (Button 4)"
+        if let btn = deviceManager.lastPressedButton, btn >= 3 {
+            if btn == 4 {
+                return "Front Side Button (Button 4)"
+            } else if btn == 3 {
+                return "Rear Side Button (Button 3)"
+            } else {
+                return "Auxiliary Button \(btn)"
+            }
         }
-        if deviceManager.detectedRearButton == 3 || deviceManager.lastPressedButton == 3 {
-            return "Rear Side Button (Button 3)"
+        if let front = deviceManager.detectedFrontButton, front >= 3 {
+            if let rear = deviceManager.detectedRearButton, rear >= 3 {
+                return "Calibrated: Front (\(front)), Rear (\(rear))"
+            }
+            return "Front Side Button (Button \(front))"
         }
-        if let btn = deviceManager.lastPressedButton {
-            return "Mouse Button \(btn)"
+        if let rear = deviceManager.detectedRearButton, rear >= 3 {
+            return "Rear Side Button (Button \(rear))"
         }
         return nil
     }
@@ -65,7 +90,7 @@ public struct CheckMouseView: View {
                         stepNumber: "3",
                         title: "Button Ready & Remapped",
                         statusText: step3StatusText,
-                        isPassed: (deviceManager.detectedFrontButton != nil || deviceManager.detectedRearButton != nil),
+                        isPassed: isStep3Passed,
                         detail: step3DetailText,
                         icon: "bolt.fill"
                     )
@@ -90,10 +115,10 @@ public struct CheckMouseView: View {
             HStack(spacing: 14) {
                 ZStack {
                     Circle()
-                        .fill(hasPressedAnyButton ? Theme.statusGreen.opacity(0.2) : Theme.bgCardElevated)
+                        .fill(hasDetectedSideButton ? Theme.statusGreen.opacity(0.2) : Theme.bgCardElevated)
                         .frame(width: 36, height: 36)
                     
-                    if hasPressedAnyButton {
+                    if hasDetectedSideButton {
                         Image(systemName: "checkmark")
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(Theme.statusGreen)
@@ -119,14 +144,14 @@ public struct CheckMouseView: View {
                 // Live Input Beacon
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(hasPressedAnyButton ? Theme.accentCyan : Theme.borderSubtle)
+                        .fill(hasDetectedSideButton ? Theme.accentCyan : Theme.borderSubtle)
                         .frame(width: 10, height: 10)
-                        .scaleEffect(hasPressedAnyButton ? 1.2 : 1.0)
-                        .animation(.easeInOut(duration: 0.2), value: hasPressedAnyButton)
+                        .scaleEffect(hasDetectedSideButton ? 1.2 : 1.0)
+                        .animation(.easeInOut(duration: 0.2), value: hasDetectedSideButton)
                     
-                    Text(hasPressedAnyButton ? "SIGNAL DETECTED" : "LISTENING...")
+                    Text(hasDetectedSideButton ? "SIGNAL DETECTED" : "LISTENING...")
                         .font(Theme.fontBadge)
-                        .foregroundColor(hasPressedAnyButton ? Theme.accentCyan : Theme.textMuted)
+                        .foregroundColor(hasDetectedSideButton ? Theme.accentCyan : Theme.textMuted)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
@@ -141,12 +166,16 @@ public struct CheckMouseView: View {
                         Image(systemName: "hand.tap.fill")
                             .font(.system(size: 12))
                             .foregroundColor(Theme.accentCyan)
-                        Text("Last received: \(name)")
+                        Text("Signal: \(name)")
                             .font(Theme.fontSmall)
                             .foregroundColor(Theme.textPrimary)
                     }
+                } else if let btn = deviceManager.lastPressedButton {
+                    Text("Ignored non-side button click (Button \(btn))")
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textMuted)
                 } else {
-                    Text("Awaiting first physical button click from your mouse...")
+                    Text("Awaiting first physical side button click from your mouse...")
                         .font(Theme.fontSmall)
                         .foregroundColor(Theme.textMuted)
                 }
@@ -169,21 +198,28 @@ public struct CheckMouseView: View {
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(hasPressedAnyButton ? Theme.accentCyan.opacity(0.4) : Theme.borderSubtle, lineWidth: 1)
+                .stroke(hasDetectedSideButton ? Theme.accentCyan.opacity(0.4) : Theme.borderSubtle, lineWidth: 1)
         )
     }
     
     // MARK: - Step 3 Status Strings
     
     private var step3StatusText: String {
-        if let front = deviceManager.detectedFrontButton, let rear = deviceManager.detectedRearButton {
+        switch deviceManager.calibrationState {
+        case .completed(let front, let rear):
             return "Both Side Buttons (Btn \(front) & Btn \(rear)) physically calibrated!"
-        } else if let front = deviceManager.detectedFrontButton {
-            return "Front button (Btn \(front)) verified. Press rear button next."
-        } else if let rear = deviceManager.detectedRearButton {
-            return "Rear button (Btn \(rear)) verified. Press front button next."
-        } else {
-            return "Awaiting side button verification"
+        case .timedOut(let pos, let front, let rear):
+            if !pos {
+                return "Pipeline timeout: Middle Click check not detected"
+            } else if !front && !rear {
+                return "Pipeline verified, but no physical side button signals received"
+            } else {
+                return "Partial detection: Only one side button verified"
+            }
+        case .step1_positiveControl, .step2_frontButton, .step3_rearButton:
+            return "Guided test in progress..."
+        case .idle:
+            return "Awaiting guided physical calibration"
         }
     }
     
@@ -439,7 +475,7 @@ public struct CheckMouseView: View {
                     Text("Guided Test Concluded (30s Window)")
                         .font(Theme.fontHeader)
                         .foregroundColor(Theme.statusOrange)
-                    Text("Positive Control: \(pos ? "Verified" : "Pending") | Front: \(front ? "Detected" : "Pending") | Rear: \(rear ? "Detected" : "Pending")")
+                    Text("Positive Control: \(pos ? "Verified (Middle Click)" : "Pending") | Front Side: \(front ? "Detected" : "Pending") | Rear Side: \(rear ? "Detected" : "Pending")")
                         .font(Theme.fontSmall)
                         .foregroundColor(Theme.textSecondary)
                 case .idle:

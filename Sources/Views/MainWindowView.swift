@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 
 public enum MainTab: String, CaseIterable, Identifiable {
     case devices = "Devices"
@@ -21,13 +22,13 @@ public struct MainWindowView: View {
     @StateObject private var profileStore = ProfileStore()
     @StateObject private var deviceManager = DeviceManager()
     @ObservedObject private var permissionManager = PermissionManager.shared
-    @State private var activeTab: MainTab = .devices
-    @State private var selectedButton: PhysicalButton? = .frontSide
-    @State private var viewMode: MouseViewMode = .side
-    @State private var isRecordingShortcut: Bool = false
-    @State private var showAssignmentsPalette: Bool = true
-    @State private var searchCommandText: String = ""
-    @State private var paletteSubtab: String = "COMMANDS"
+    @UIState private var activeTab: MainTab = .devices
+    @UIState private var selectedButton: PhysicalButton? = .frontSide
+    @UIState private var viewMode: MouseViewMode = .side
+    @UIState private var isRecordingShortcut: Bool = false
+    @UIState private var showAssignmentsPalette: Bool = true
+    @UIState private var searchCommandText: String = ""
+    @UIState private var paletteSubtab: String = "COMMANDS"
     
     private let permCheckTimer = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
     

@@ -76,3 +76,29 @@
 - Dynamic Settings Deep Links: Implemented primary deep link to x-apple.systempreferences:com.apple.preference.security?Privacy_DeviceControl on macOS 27+ with graceful fallback to Privacy_Accessibility and general Privacy pane.
 - Dynamic Recovery Banner & Settings Views: Updated MainWindowView, SettingsView, CheckMouseView, and DiagnosticsView with dynamic "Device Control and Data Access" naming, recovery instructions for circle-slash prohibition entries (⃠), and live status badges across all 4 authorization layers.
 - Verified & Evidenced: Captured ui_evidence/25_macos27_device_control_banner.png, ui_evidence/26_macos27_settings_permissions.png, and ui_evidence/27_settings_permissions_macos27_verified.png. All 12 assertions in TestPermissionManager.swift passed 100%. All 119 InputEngine assertions, persistence, and multi-interface HID tests passed cleanly.
+
+[2026-11-07T21:05:00+05:30] Elimination of False-Positive Hardware Calibration & Input Safety Barrier Implementation:
+- Root-Cause Investigation:
+  1. Identified that handleCalibrationEvent in DeviceManager.swift accepted button number 0 (Quartz Left Click) and button number 1 (Right Click), allowing ordinary user clicks on the UI during calibration to be captured as side buttons, resulting in the user's reported "Front 4, Rear 0" bug.
+  2. Discovered fallback defaults (detectedFrontButton ?? 4, detectedRearButton ?? 3) that masked missing hardware signals.
+  3. Identified isPositiveControl in DeviceManager.swift accepted Left Click (usagePage == 0x09 && usage == 0x01), immediately advancing Step 1 on ordinary mouse clicks.
+  4. Identified that InputEngine.handleEvent and setAction lacked a hard safety barrier to prevent buttons 0, 1, and 2 from being remapped or suppressed.
+  5. Identified contradictory UI states in CheckMouseView.swift where Step 3 showed green passed whenever detectedFrontButton != nil || detectedRearButton != nil, even while Step 2 showed "Awaiting first physical button click".
+- Immediate Safety & Core Fixes:
+  1. InputEngine Hard Safety Barrier: Enforced that mouse buttons 0 (Left), 1 (Right), and 2 (Middle) can NEVER be remapped, intercepted, or suppressed. Added guards in setAction, setMappings, init, and handleEvent.
+  2. Strict Calibration Rejection:
+     - Step 1 (Positive Control): Exclusively requires Middle Click (Button 2 / Usage 3). Buttons 0 and 1 are strictly rejected.
+     - Step 2 (Front Side Button): Strictly requires auxiliary inputs (Quartz button >= 3 or HID Page 0x0C usages 0x224/0x225 or Page 0x09 usages >= 4). Buttons 0, 1, 2, scroll wheel, and HID release value 0 are strictly rejected.
+     - Step 3 (Rear Side Button): Strictly requires auxiliary inputs distinct from the front button (rear != front). Pressing the same button twice or clicking left click is strictly rejected.
+     - Completely eliminated all ?? 4 and ?? 3 fallback defaults.
+  3. UI State Harmonization:
+     - Step 3 is ONLY marked passed if calibrationState == .completed(let front, let rear) where front >= 3, rear >= 3, and front != rear.
+     - Step 2 beacon and status only respond to physical side buttons (button >= 3), ignoring ordinary mouse clicks.
+     - Honest timeout reporting: When the 30-second timer expires without both side buttons, displays: "Guided Test Concluded (30s Window) - Positive Control: Pending | Front Side: Pending | Rear Side: Pending".
+  4. Build & Compiler Resilience:
+     - Resolved CommandLineTools missing Swift 6 macro plugin SwiftUIMacros by providing property wrapper UIState wrapping SwiftUI.State.
+     - App built cleanly, signed with Developer ID Application: Totem Interactive (BKS6A8KSC2), and installed to /Applications/Kreo Mouse Control.app.
+- Verification Evidence:
+  - Created and ran strict regression test suite in Tests/TestCalibration.swift verifying rejection of buttons 0, 1, 2, duplicate rejection, and HID release values.
+  - Verified all 5 test suites pass (100% green across TestCalibration, TestInputEngine, TestMultiInterfaceHID, TestPermissionManager, TestPersistence).
+  - Captured actual screenshots: ui_evidence/28_initial_launch.png, ui_evidence/29_check_mouse_honest_state.png, ui_evidence/32_check_mouse_screen.png, ui_evidence/33_guided_test_step1.png, ui_evidence/34_guided_test_timeout_concluded.png.

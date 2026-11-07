@@ -22,10 +22,10 @@ public enum SettingsCategory: String, CaseIterable, Identifiable {
 public struct SettingsView: View {
     @ObservedObject var profileStore: ProfileStore
     @ObservedObject var deviceManager: DeviceManager
-    @State private var activeCategory: SettingsCategory = .general
-    @State private var launchAtLogin: Bool = true
-    @State private var showMenuBarIcon: Bool = true
-    @State private var copiedReport: Bool = false
+    @UIState private var activeCategory: SettingsCategory = .general
+    @UIState private var launchAtLogin: Bool = true
+    @UIState private var showMenuBarIcon: Bool = true
+    @UIState private var copiedReport: Bool = false
     
     public init(profileStore: ProfileStore, deviceManager: DeviceManager) {
         self.profileStore = profileStore

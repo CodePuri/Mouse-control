@@ -142,7 +142,8 @@ public final class InputEngine: @unchecked Sendable {
     }
 
     public init(mappings: [Int: InputAction] = [:], isPaused: Bool = false) {
-        self.mappings = mappings
+        // Immediate safety: filter out any attempt to map primary/secondary/middle buttons
+        self.mappings = mappings.filter { $0.key >= 3 }
         self._isPaused = isPaused
         self.eventPoster = { event, location in
             event.post(tap: location)
@@ -156,6 +157,8 @@ public final class InputEngine: @unchecked Sendable {
     // MARK: - Configuration
 
     public func setAction(_ action: InputAction, forButton buttonNumber: Int) {
+        // Immediate safety barrier: NEVER allow buttons 0, 1, or 2 (Left, Right, Middle) to be remapped
+        guard buttonNumber >= 3 else { return }
         lock.lock()
         defer { lock.unlock() }
         mappings[buttonNumber] = action
@@ -176,7 +179,7 @@ public final class InputEngine: @unchecked Sendable {
     public func setMappings(_ newMappings: [Int: InputAction]) {
         lock.lock()
         defer { lock.unlock() }
-        self.mappings = newMappings
+        self.mappings = newMappings.filter { $0.key >= 3 }
     }
 
     public func currentMappings() -> [Int: InputAction] {
@@ -391,6 +394,12 @@ public final class InputEngine: @unchecked Sendable {
         }
 
         let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+
+        // ABSOLUTE SAFETY BARRIER:
+        // Buttons 0 (Left), 1 (Right), and 2 (Middle) must NEVER be suppressed or remapped.
+        guard buttonNumber >= 3 else {
+            return Unmanaged.passUnretained(event)
+        }
 
         lock.lock()
         let paused = self._isPaused

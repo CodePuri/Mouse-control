@@ -7,12 +7,12 @@ public struct AssignmentsView: View {
     @ObservedObject var deviceManager: DeviceManager
     @Binding var selectedButton: PhysicalButton?
     
-    @State private var searchText: String = ""
-    @State private var isRecordingShortcut: Bool = false
-    @State private var recordedKeyCode: UInt16 = 0
-    @State private var recordedModifiers: UInt64 = 0
-    @State private var recordedLabel: String = ""
-    @State private var localFeedback: String? = nil
+    @UIState private var searchText: String = ""
+    @UIState private var isRecordingShortcut: Bool = false
+    @UIState private var recordedKeyCode: UInt16 = 0
+    @UIState private var recordedModifiers: UInt64 = 0
+    @UIState private var recordedLabel: String = ""
+    @UIState private var localFeedback: String? = nil
     
     public init(profileStore: ProfileStore, deviceManager: DeviceManager, selectedButton: Binding<PhysicalButton?>) {
         self.profileStore = profileStore

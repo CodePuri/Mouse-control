@@ -132,7 +132,9 @@ public struct ObservedHIDEvent: Identifiable, Sendable, Equatable {
     }
     
     public var isPositiveControl: Bool {
-        (usagePage == 0x09 && usage == 0x03) || (usagePage == 0x09 && usage == 0x01)
+        // Strictly Middle Click (Button 3 on Page 0x09) only.
+        // Primary left click (usage 1) is never accepted as positive control.
+        usagePage == 0x09 && usage == 0x03
     }
 }
 
@@ -166,7 +168,7 @@ public enum CalibrationSessionState: Equatable {
         case .idle:
             return "Click 'Start Guided Calibration' to test the event pipeline and attribute physical side buttons."
         case .step1_positiveControl:
-            return "Positive Control Check: Click your Middle Button (Scroll Wheel Click) or Left Button to verify event capture."
+            return "Positive Control Check: Click your Middle Button (Scroll Wheel Click) to verify event capture."
         case .step2_frontButton:
             return "Press and briefly hold the Front Side Button (closer to the scroll wheel), then release."
         case .step3_rearButton:
@@ -396,35 +398,47 @@ public final class DeviceManager: ObservableObject {
                 }
             }
         case .step2_frontButton:
-            if !ev.isPositiveControl {
-                if intVal != 0 {
-                    detectedFrontHIDEvent = ev
-                    if ev.usagePage == 0x09 {
-                        detectedFrontButton = Int(ev.usage) == 5 ? 3 : 4
-                    } else if ev.usagePage == 0x0C {
-                        detectedFrontButton = ev.usage == 0x224 ? 3 : 4
-                    }
-                } else if intVal == 0 && detectedFrontHIDEvent != nil {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                        guard let self = self, self.calibrationState == .step2_frontButton else { return }
-                        self.calibrationState = .step3_rearButton
-                    }
+            // Strictly require an auxiliary / side button. Rejects Left (0), Right (1), Middle (2), and Scroll.
+            let isSideButton = (ev.usagePage == 0x0C && (ev.usage == 0x224 || ev.usage == 0x225)) ||
+                               (ev.usagePage == 0x09 && ev.usage >= 4)
+            guard isSideButton else { break }
+            
+            if intVal != 0 {
+                detectedFrontHIDEvent = ev
+                if ev.usagePage == 0x09 {
+                    detectedFrontButton = (ev.usage == 5) ? 3 : 4
+                } else if ev.usagePage == 0x0C {
+                    detectedFrontButton = (ev.usage == 0x224) ? 3 : 4
+                }
+            } else if intVal == 0 && detectedFrontHIDEvent != nil && detectedFrontButton != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    guard let self = self, self.calibrationState == .step2_frontButton else { return }
+                    self.calibrationState = .step3_rearButton
                 }
             }
         case .step3_rearButton:
-            if !ev.isPositiveControl {
-                if intVal != 0 {
-                    detectedRearHIDEvent = ev
-                    if ev.usagePage == 0x09 {
-                        detectedRearButton = Int(ev.usage) == 4 ? 4 : 3
-                    } else if ev.usagePage == 0x0C {
-                        detectedRearButton = ev.usage == 0x225 ? 4 : 3
-                    }
-                } else if intVal == 0 && detectedRearHIDEvent != nil {
-                    let front = detectedFrontButton ?? 4
-                    let rear = detectedRearButton ?? 3
-                    calibrationState = .completed(frontBtn: front, rearBtn: rear)
-                }
+            // Strictly require an auxiliary / side button.
+            let isSideButton = (ev.usagePage == 0x0C && (ev.usage == 0x224 || ev.usage == 0x225)) ||
+                               (ev.usagePage == 0x09 && ev.usage >= 4)
+            guard isSideButton else { break }
+            
+            let btn: Int
+            if ev.usagePage == 0x09 {
+                btn = (ev.usage == 4) ? 4 : 3
+            } else if ev.usagePage == 0x0C {
+                btn = (ev.usage == 0x225) ? 4 : 3
+            } else {
+                btn = Int(ev.usage)
+            }
+            
+            // Must NOT accept the identical button as front button
+            guard let front = detectedFrontButton, front >= 3, btn != front else { break }
+            
+            if intVal != 0 {
+                detectedRearHIDEvent = ev
+                detectedRearButton = btn
+            } else if intVal == 0 && detectedRearHIDEvent != nil && detectedRearButton == btn {
+                calibrationState = .completed(frontBtn: front, rearBtn: btn)
             }
         default:
             break
@@ -503,9 +517,9 @@ public final class DeviceManager: ObservableObject {
                 } else {
                     self.calibrationSecondsRemaining = 0
                     t.invalidate()
-                    let posPassed = (self.positiveControlObservedButton != nil)
-                    let frontSeen = (self.detectedFrontButton != nil)
-                    let rearSeen = (self.detectedRearButton != nil)
+                    let posPassed = (self.positiveControlObservedButton == 2)
+                    let frontSeen = (self.detectedFrontButton != nil && self.detectedFrontButton! >= 3)
+                    let rearSeen = (self.detectedRearButton != nil && self.detectedRearButton! >= 3 && self.detectedRearButton != self.detectedFrontButton)
                     self.calibrationState = .timedOut(
                         positiveControlPassed: posPassed,
                         frontSeen: frontSeen,
@@ -539,6 +553,9 @@ public final class DeviceManager: ObservableObject {
         
         switch calibrationState {
         case .step1_positiveControl:
+            // Strictly require Middle Click (Button 2) for positive control.
+            // Left Click (0) and Right Click (1) are strictly rejected.
+            guard button == 2 else { return }
             if type.contains("Down") {
                 positiveControlObservedButton = button
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -547,6 +564,8 @@ public final class DeviceManager: ObservableObject {
                 }
             }
         case .step2_frontButton:
+            // Reject primary (0), secondary (1), and middle (2) mouse clicks
+            guard button >= 3 else { return }
             if type.contains("Down") {
                 detectedFrontButton = button
             } else if type.contains("Up") && detectedFrontButton == button {
@@ -556,12 +575,14 @@ public final class DeviceManager: ObservableObject {
                 }
             }
         case .step3_rearButton:
+            // Reject primary (0), secondary (1), and middle (2) mouse clicks
+            guard button >= 3 else { return }
+            // Must have a valid front button and rear button MUST be distinct from front button
+            guard let front = detectedFrontButton, front >= 3, button != front else { return }
             if type.contains("Down") {
                 detectedRearButton = button
             } else if type.contains("Up") && detectedRearButton == button {
-                let front = detectedFrontButton ?? 4
-                let rear = detectedRearButton ?? 3
-                calibrationState = .completed(frontBtn: front, rearBtn: rear)
+                calibrationState = .completed(frontBtn: front, rearBtn: button)
                 stopCalibration(engine: engine)
             }
         default:

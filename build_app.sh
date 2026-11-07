@@ -9,7 +9,7 @@ RESOURCES="$CONTENTS/Resources"
 mkdir -p build
 
 echo "Compiling MouseControl with target arm64-apple-macos14.0..."
-DEVELOPER_DIR=/Applications/Xcode-26.6.0.app/Contents/Developer xcrun swiftc -target arm64-apple-macos14.0 Sources/*.swift Sources/Views/*.swift -o build/MouseControl
+swiftc -target arm64-apple-macos14.0 Sources/*.swift Sources/Views/*.swift -o build/MouseControl
 
 mkdir -p "$MACOS"
 mkdir -p "$RESOURCES/Resources"
