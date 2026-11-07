@@ -32,25 +32,22 @@ public struct DeviceStageView: View {
                     .ignoresSafeArea()
                 
                 // Device Image Stage
-                VStack(spacing: 0) {
-                    Spacer()
+                ZStack {
+                    // Kreo Cutout Image anchored to content bounds
+                    deviceImageView(stageSize: geo.size)
                     
-                    ZStack {
-                        // Kreo Cutout Image
-                        deviceImageView(stageSize: geo.size)
-                        
-                        // Interactive Callout Pins & Hotspots
-                        if viewMode == .side {
-                            sideViewOverlay(stageSize: geo.size)
-                        } else {
-                            topViewOverlay(stageSize: geo.size)
-                        }
+                    // Interactive Callout Pins & Hotspots
+                    if viewMode == .side {
+                        sideViewOverlay(stageSize: geo.size)
+                    } else {
+                        topViewOverlay(stageSize: geo.size)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                
+                // View Switcher Pill at bottom (Matching R01 / G HUB)
+                VStack {
                     Spacer()
-                    
-                    // View Switcher Pill (Matching R01 / G HUB)
                     HStack(spacing: 8) {
                         ForEach(MouseViewMode.allCases) { mode in
                             Button(action: {
@@ -76,6 +73,16 @@ public struct DeviceStageView: View {
         }
     }
     
+    // MARK: - Content Bounds Calculation
+    
+    private func imageContentBounds(stageSize: CGSize) -> CGRect {
+        // Cutouts are 1:1 square aspect ratio (1920x1920)
+        let maxSide = min(stageSize.height * 0.74, min(stageSize.width * 0.82, 540))
+        let originX = (stageSize.width - maxSide) / 2
+        let originY = (stageSize.height - maxSide) / 2 - 16
+        return CGRect(x: originX, y: originY, width: maxSide, height: maxSide)
+    }
+    
     private func loadDeviceImage(baseName: String) -> NSImage? {
         if let bundlePath = Bundle.main.path(forResource: baseName, ofType: "png", inDirectory: "Resources") ??
                            Bundle.main.path(forResource: baseName, ofType: "png") {
@@ -98,12 +105,14 @@ public struct DeviceStageView: View {
     private func deviceImageView(stageSize: CGSize) -> some View {
         let baseName = (viewMode == .side) ? "kreo_side_cutout" : "kreo_top_cutout"
         let loadedImage = loadDeviceImage(baseName: baseName)
+        let bounds = imageContentBounds(stageSize: stageSize)
         
         if let nsImage = loadedImage {
             Image(nsImage: nsImage)
                 .resizable()
                 .scaledToFit()
-                .frame(maxHeight: min(stageSize.height * 0.78, 560))
+                .frame(width: bounds.width, height: bounds.height)
+                .position(x: bounds.midX, y: bounds.midY)
                 .shadow(color: Color.black.opacity(0.6), radius: 25, x: 0, y: 15)
         } else {
             VStack {
@@ -114,20 +123,37 @@ public struct DeviceStageView: View {
                     .font(Theme.fontHeader)
                     .foregroundColor(Theme.textSecondary)
             }
+            .position(x: bounds.midX, y: bounds.midY)
         }
     }
     
+    // MARK: - Side View Overlay (Anchored to Image Bounds)
+    
     @ViewBuilder
     private func sideViewOverlay(stageSize: CGSize) -> some View {
-        // Calibrated coordinates directly landing on Kreo Chimera V2 purple side buttons:
-        // Front purple button (pointing left, closer to wheel)
-        let frontBtnPos = CGPoint(x: stageSize.width * 0.495, y: stageSize.height * 0.445)
-        // Rear purple button (pointing left, closer to palm)
-        let rearBtnPos = CGPoint(x: stageSize.width * 0.535, y: stageSize.height * 0.445)
+        let bounds = imageContentBounds(stageSize: stageSize)
+        
+        // Exact pixel centers inside the 1920x1920 cutout image:
+        // Front purple button (closer to scroll wheel): (815, 940) -> (0.4245, 0.4896)
+        // Rear purple button (closer to palm): (1050, 940) -> (0.5469, 0.4896)
+        let frontBtnPos = CGPoint(
+            x: bounds.minX + bounds.width * (815.0 / 1920.0),
+            y: bounds.minY + bounds.height * (940.0 / 1920.0)
+        )
+        let rearBtnPos = CGPoint(
+            x: bounds.minX + bounds.width * (1050.0 / 1920.0),
+            y: bounds.minY + bounds.height * (940.0 / 1920.0)
+        )
         
         // Callout card positions on the left side of the stage
-        let frontCalloutPos = CGPoint(x: max(120, stageSize.width * 0.18), y: frontBtnPos.y - 45)
-        let rearCalloutPos = CGPoint(x: max(120, stageSize.width * 0.18), y: rearBtnPos.y + 45)
+        let frontCalloutPos = CGPoint(
+            x: max(135, bounds.minX - 110),
+            y: frontBtnPos.y - 48
+        )
+        let rearCalloutPos = CGPoint(
+            x: max(135, bounds.minX - 110),
+            y: rearBtnPos.y + 48
+        )
         
         // Leader Lines connecting buttons to callout cards
         Path { path in
@@ -139,11 +165,11 @@ public struct DeviceStageView: View {
         }
         .stroke(Theme.borderSubtle, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
         
-        // Hotspot 1: Front Side Button (Button 4)
+        // Hotspot 1: Front Side Button (Quartz Button 4)
         hotspotDot(
             pos: frontBtnPos,
             button: .frontSide,
-            isPressed: deviceManager.lastPressedButton == 4
+            isPressed: (deviceManager.lastPressedButton == 4 || deviceManager.detectedFrontButton == 4)
         )
         
         // Callout 1: Front Side Button
@@ -153,11 +179,11 @@ public struct DeviceStageView: View {
             action: profileStore.activeProfile.assignments[PhysicalButton.frontSide.rawValue]
         )
         
-        // Hotspot 2: Rear Side Button (Button 3)
+        // Hotspot 2: Rear Side Button (Quartz Button 3)
         hotspotDot(
             pos: rearBtnPos,
             button: .rearSide,
-            isPressed: deviceManager.lastPressedButton == 3
+            isPressed: (deviceManager.lastPressedButton == 3 || deviceManager.detectedRearButton == 3)
         )
         
         // Callout 2: Rear Side Button
@@ -168,11 +194,21 @@ public struct DeviceStageView: View {
         )
     }
     
+    // MARK: - Top View Overlay (Anchored to Image Bounds)
+    
     @ViewBuilder
     private func topViewOverlay(stageSize: CGSize) -> some View {
-        // Top View hot spots
-        let wheelPos = CGPoint(x: stageSize.width * 0.50, y: stageSize.height * 0.35)
-        let wheelCalloutPos = CGPoint(x: stageSize.width * 0.50, y: stageSize.height * 0.16)
+        let bounds = imageContentBounds(stageSize: stageSize)
+        
+        // Scroll wheel center at (960, 540) -> (0.50, 0.28125)
+        let wheelPos = CGPoint(
+            x: bounds.minX + bounds.width * 0.50,
+            y: bounds.minY + bounds.height * (540.0 / 1920.0)
+        )
+        let wheelCalloutPos = CGPoint(
+            x: wheelPos.x,
+            y: max(60, bounds.minY - 45)
+        )
         
         Path { path in
             path.move(to: wheelPos)
@@ -180,7 +216,11 @@ public struct DeviceStageView: View {
         }
         .stroke(Theme.borderSubtle, style: StrokeStyle(lineWidth: 1.5, dash: [4, 4]))
         
-        hotspotDot(pos: wheelPos, button: .middle, isPressed: deviceManager.lastPressedButton == 2)
+        hotspotDot(
+            pos: wheelPos,
+            button: .middle,
+            isPressed: (deviceManager.lastPressedButton == 2 || deviceManager.positiveControlObservedButton == 2)
+        )
         
         calloutCard(
             pos: wheelCalloutPos,
@@ -188,6 +228,8 @@ public struct DeviceStageView: View {
             action: profileStore.activeProfile.assignments[PhysicalButton.middle.rawValue]
         )
     }
+    
+    // MARK: - Hotspot Pin
     
     @ViewBuilder
     private func hotspotDot(pos: CGPoint, button: PhysicalButton, isPressed: Bool) -> some View {
@@ -205,10 +247,17 @@ public struct DeviceStageView: View {
             
             Circle()
                 .fill(isSelected ? Theme.accentCyan : (isPressed ? Theme.accentPurple : Color.white))
-                .frame(width: 12, height: 12)
+                .frame(width: 14, height: 14)
                 .shadow(color: (isSelected ? Theme.accentCyan : Color.white).opacity(0.8), radius: 6)
+            
+            Circle()
+                .fill(Color.black.opacity(0.2))
+                .frame(width: 4, height: 4)
         }
+        .frame(width: 40, height: 40)
+        .contentShape(Rectangle())
         .position(pos)
+        .help("Click to configure \(button.displayName)")
         .onTapGesture {
             withAnimation(.snappy(duration: 0.2)) {
                 selectedButton = button
@@ -216,17 +265,18 @@ public struct DeviceStageView: View {
         }
     }
     
+    // MARK: - Callout Card (Readable, Non-Truncated)
+    
     @ViewBuilder
     private func calloutCard(pos: CGPoint, button: PhysicalButton, action: StoredAction?) -> some View {
         let isSelected = selectedButton == button
-        let actionTitle = action?.displayName ?? "Unassigned"
         
         Button(action: {
             withAnimation(.snappy(duration: 0.2)) {
                 selectedButton = button
             }
         }) {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(button.displayName)
                         .font(Theme.fontSmall)
@@ -234,45 +284,42 @@ public struct DeviceStageView: View {
                     
                     Spacer(minLength: 0)
                     
-                    if button == .frontSide {
-                        Text("BTN 4")
-                            .font(Theme.fontBadge)
-                            .foregroundColor(Theme.textMuted)
-                    } else if button == .rearSide {
-                        Text("BTN 3")
-                            .font(Theme.fontBadge)
-                            .foregroundColor(Theme.textMuted)
-                    } else if button == .middle {
-                        Text("BTN 2")
-                            .font(Theme.fontBadge)
-                            .foregroundColor(Theme.textMuted)
-                    }
+                    Text("BTN \(button.rawValue)")
+                        .font(Theme.fontBadge)
+                        .foregroundColor(Theme.textMuted)
                 }
                 
                 HStack(spacing: 6) {
-                    if action?.type == .wisprFlowPTT {
-                        Image(systemName: "mic.fill")
+                    if let act = action {
+                        Image(systemName: iconForAction(act))
+                            .font(.system(size: 11))
+                            .foregroundColor(iconColorForAction(act))
+                        
+                        Text(displayTitleForAction(act))
+                            .font(Theme.fontHeader)
+                            .foregroundColor(isSelected ? Theme.accentCyan : Theme.textPrimary)
+                            .lineLimit(1)
+                        
+                        Spacer(minLength: 0)
+                        
+                        Text(badgeForAction(act))
+                            .font(Theme.fontBadge)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Theme.bgCanvas)
                             .foregroundColor(Theme.accentCyan)
-                            .font(.system(size: 11))
-                    } else if action?.type == .undo {
-                        Image(systemName: "arrow.uturn.backward")
-                            .foregroundColor(Theme.statusGreen)
-                            .font(.system(size: 11))
-                    } else if action?.type == .redo {
-                        Image(systemName: "arrow.uturn.forward")
-                            .foregroundColor(Theme.statusGreen)
-                            .font(.system(size: 11))
+                            .cornerRadius(4)
+                    } else {
+                        Text("Unassigned")
+                            .font(Theme.fontSmall)
+                            .foregroundColor(Theme.textMuted)
                     }
-                    
-                    Text(actionTitle)
-                        .font(Theme.fontHeader)
-                        .foregroundColor(isSelected ? Theme.accentCyan : Theme.textPrimary)
-                        .lineLimit(1)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .frame(width: 210)
+            .frame(width: 215)
+            .fixedSize(horizontal: false, vertical: true)
             .background(isSelected ? Theme.bgCardElevated : Theme.bgCard)
             .cornerRadius(10)
             .overlay(
@@ -283,5 +330,47 @@ public struct DeviceStageView: View {
         }
         .buttonStyle(.plain)
         .position(pos)
+        .help(action?.subtitle ?? "Click to configure \(button.displayName)")
+    }
+    
+    private func displayTitleForAction(_ act: StoredAction) -> String {
+        switch act.type {
+        case .wisprFlowPTT: return "Wispr Flow"
+        case .undo: return "Undo"
+        case .redo: return "Redo"
+        case .shortcut: return act.customLabel.isEmpty ? "Shortcut" : act.customLabel
+        case .passthrough: return "Passthrough"
+        case .disabled: return "Disabled"
+        }
+    }
+    
+    private func badgeForAction(_ act: StoredAction) -> String {
+        switch act.type {
+        case .wisprFlowPTT: return "⌥ PTT"
+        case .undo: return "⌘Z"
+        case .redo: return "⇧⌘Z"
+        case .shortcut: return "Key"
+        case .passthrough: return "Native"
+        case .disabled: return "Off"
+        }
+    }
+    
+    private func iconForAction(_ act: StoredAction) -> String {
+        switch act.type {
+        case .wisprFlowPTT: return "mic.fill"
+        case .undo: return "arrow.uturn.backward"
+        case .redo: return "arrow.uturn.forward"
+        case .shortcut: return "keyboard"
+        case .passthrough: return "arrow.left.arrow.right"
+        case .disabled: return "slash.circle"
+        }
+    }
+    
+    private func iconColorForAction(_ act: StoredAction) -> Color {
+        switch act.type {
+        case .wisprFlowPTT: return Theme.accentCyan
+        case .undo, .redo: return Theme.statusGreen
+        default: return Theme.textSecondary
+        }
     }
 }

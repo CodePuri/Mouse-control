@@ -86,6 +86,7 @@ public final class InputEngine: @unchecked Sendable {
     private let lock = NSLock()
     private var _isPaused: Bool = false
     private var _isRunning: Bool = false
+    private var _isCalibrating: Bool = false
     private var mappings: [Int: InputAction] = [:]
     private var latchedActions: [Int: InputAction] = [:]
 
@@ -104,6 +105,9 @@ public final class InputEngine: @unchecked Sendable {
     /// Optional hook called whenever a mouse button event is handled by the engine.
     public var onButtonEventHandled: ((Int, CGEventType, InputAction?) -> Void)?
 
+    /// Optional hook called for every observed raw mouse event during calibration mode.
+    public var onRawCalibrationEvent: ((Int, CGEventType, CGEvent) -> Void)?
+
     /// Whether the remapping service is currently paused.
     public var isPaused: Bool {
         lock.lock()
@@ -116,6 +120,25 @@ public final class InputEngine: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _isRunning
+    }
+
+    /// Whether calibration observation mode is active (transformations suspended).
+    public var isCalibrating: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _isCalibrating
+    }
+
+    public func enterCalibrationMode() {
+        lock.lock()
+        _isCalibrating = true
+        lock.unlock()
+    }
+
+    public func exitCalibrationMode() {
+        lock.lock()
+        _isCalibrating = false
+        lock.unlock()
     }
 
     public init(mappings: [Int: InputAction] = [:], isPaused: Bool = false) {
@@ -203,7 +226,12 @@ public final class InputEngine: @unchecked Sendable {
             return true
         }
 
-        let mask: CGEventMask = (1 << CGEventType.otherMouseDown.rawValue) | (1 << CGEventType.otherMouseUp.rawValue)
+        let mask: CGEventMask = (1 << CGEventType.leftMouseDown.rawValue) |
+                               (1 << CGEventType.leftMouseUp.rawValue) |
+                               (1 << CGEventType.rightMouseDown.rawValue) |
+                               (1 << CGEventType.rightMouseUp.rawValue) |
+                               (1 << CGEventType.otherMouseDown.rawValue) |
+                               (1 << CGEventType.otherMouseUp.rawValue)
         let refcon = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
 
         guard let tap = CGEvent.tapCreate(
@@ -345,7 +373,19 @@ public final class InputEngine: @unchecked Sendable {
             return Unmanaged.passUnretained(event)
         }
 
-        // Only handle otherMouseDown and otherMouseUp
+        // Check if calibration observation mode is active
+        lock.lock()
+        let calibrating = self._isCalibrating
+        lock.unlock()
+
+        if calibrating {
+            let buttonNumber = Int(event.getIntegerValueField(.mouseEventButtonNumber))
+            onRawCalibrationEvent?(buttonNumber, type, event)
+            // Never suppress or transform events during calibration mode
+            return Unmanaged.passUnretained(event)
+        }
+
+        // Only handle otherMouseDown and otherMouseUp during normal remapping
         guard type == .otherMouseDown || type == .otherMouseUp else {
             return Unmanaged.passUnretained(event)
         }

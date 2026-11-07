@@ -31,3 +31,18 @@
 - Built System Diagnostics view displaying real-time receiver connection, accessibility status, active input engine state, hardware descriptors, and synthetic test triggers.
 - Packaged as standalone signed application bundle (build/MouseControl.app) with NSAccessibilityUsageDescription and NSInputMonitoringUsageDescription.
 - Verified live running application at 1440x900 and 1100x720; captured actual window screenshots (ui_evidence/01_side_assignments.png, ui_evidence/02_top_view.png, ui_evidence/03_diagnostics.png).
+
+[2026-11-07T18:16:00+05:30] M1 Status Correction:
+- Updated M1 status to: "Implementation available; physical acceptance pending."
+- Starting correction pass for visible UI defects, aspect-fit hotspot alignment, in-app guided calibration, honest device scope labeling, and input pipeline verification.
+
+[2026-11-07T18:30:00+05:30] M1 Visible UI Defects & Guided Calibration Correction Pass:
+- Corrected Hotspot Alignment: Anchored hotspot positions directly to computed 1:1 image content bounds. Front button anchored at (815, 940) and rear button anchored at (1050, 940) inside 1920x1920 cutout. Rear pin moved cleanly off honeycomb holes and squarely onto rear purple button.
+- Fixed Navigation Labels: Widened feature rail to 86pt with 74x56pt buttons and 10pt semibold text. "Assignments", "Diagnostics", and "Settings" display cleanly without text splitting or wrapping.
+- Fixed Truncated Callouts: Widened callout cards to 215pt with compact readable labels ("Wispr Flow" with "⌥ PTT" badge, "Undo" with "⌘Z" badge) and tooltip with full assignment details.
+- Re-architected Calibration Pipeline: Built in-app guided calibration with 3-step state machine (Positive control check on middle click -> Front button press/release -> Rear button press/release -> Completion).
+- Temporary Suspension: InputEngine suspends suppressions and remappings during calibration, allowing pure physical event observation, and restores previous state on exit.
+- Distinguished Numbering: UI explicitly documents Quartz numbering (0=Left, 1=Right, 2=Middle, 3=Rear, 4=Front) vs USB HID usages (Page 0x09 Usage 0x01..0x05).
+- Honest Scope & Status: Labeled scope as "All Connected Mice (System-wide Global CGEventTap)" with explanation of macOS driver limits. Changed profile label to "Manual Profile". Displayed distinct states for receiver detection, input service, button observation, and physical hardware acceptance.
+- Added Single-Instance Guard: AppDelegate ensures only one instance of the remapping daemon runs.
+- All unit test suites passing (105 assertions in TestInputEngine + TestPersistence + TestCalibration).

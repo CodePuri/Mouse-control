@@ -6,6 +6,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
 
     static func main() {
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.codepuri.mousecontrol"
+        let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId)
+        let currentPid = ProcessInfo.processInfo.processIdentifier
+        let otherInstances = runningApps.filter { $0.processIdentifier != currentPid }
+        
+        if let existing = otherInstances.first {
+            print("MouseControl is already running (PID \(existing.processIdentifier)). Activating existing instance and exiting.")
+            existing.activate()
+            exit(0)
+        }
+        
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate

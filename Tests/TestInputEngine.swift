@@ -309,6 +309,72 @@ func testLifecycleAndCleanup() {
     expect(engine.currentLatchedActions().isEmpty, "Latched actions cleared after stop()")
 }
 
+func testCalibrationMode() {
+    print("\n--- Test Suite 6: Calibration Observation Mode & Positive Control ---")
+
+    var postedEvents: [CGEvent] = []
+    let engine = InputEngine(mappings: [
+        4: .wisprFlowPTT(keyCode: 61),
+        3: .undo
+    ])
+    engine.eventPoster = { event, _ in
+        postedEvents.append(event)
+    }
+
+    expect(!engine.isCalibrating, "Engine is not calibrating by default")
+
+    var observedRawEvents: [(button: Int, type: CGEventType)] = []
+    engine.onRawCalibrationEvent = { btn, type, _ in
+        observedRawEvents.append((btn, type))
+    }
+
+    // 6.1 Before calibration: mapped button 4 down is suppressed
+    let b4Down = InputEngine.createMouseEvent(type: .otherMouseDown, buttonNumber: 4)!
+    let resultBefore = engine.handleEvent(proxy: nil, type: .otherMouseDown, event: b4Down)
+    expect(resultBefore == nil, "Before calibration: button 4 down is suppressed")
+    expectEqual(postedEvents.count, 1, "Synthetic PTT key posted")
+    expectEqual(observedRawEvents.count, 0, "No raw calibration events reported while not calibrating")
+
+    // Release held button 4
+    let b4Up = InputEngine.createMouseEvent(type: .otherMouseUp, buttonNumber: 4)!
+    _ = engine.handleEvent(proxy: nil, type: .otherMouseUp, event: b4Up)
+    postedEvents.removeAll()
+
+    // 6.2 Enter calibration mode
+    engine.enterCalibrationMode()
+    expect(engine.isCalibrating, "Engine is now in calibration mode")
+
+    // 6.3 In calibration mode: button 4 down is NOT suppressed and reported to callback
+    let calB4Down = InputEngine.createMouseEvent(type: .otherMouseDown, buttonNumber: 4)!
+    let resultCalDown = engine.handleEvent(proxy: nil, type: .otherMouseDown, event: calB4Down)
+    expect(resultCalDown != nil, "During calibration: button 4 down passes through untouched (non-nil)")
+    expectEqual(postedEvents.count, 0, "No synthetic keys posted during calibration")
+    expectEqual(observedRawEvents.count, 1, "Raw calibration event reported")
+    expectEqual(observedRawEvents.first?.button, 4, "Reported button is 4")
+    expectEqual(observedRawEvents.first?.type, .otherMouseDown, "Reported type is otherMouseDown")
+
+    // 6.4 Positive control check: button 2 (Middle Click) passes through and is reported
+    let b2Down = InputEngine.createMouseEvent(type: .otherMouseDown, buttonNumber: 2)!
+    let resultB2 = engine.handleEvent(proxy: nil, type: .otherMouseDown, event: b2Down)
+    expect(resultB2 != nil, "Positive control (middle click) passes through untouched")
+    expectEqual(observedRawEvents.count, 2, "Positive control reported to raw observer")
+    expectEqual(observedRawEvents.last?.button, 2, "Reported positive control button is 2 (Middle Click)")
+
+    // 6.5 Exit calibration mode
+    engine.exitCalibrationMode()
+    expect(!engine.isCalibrating, "Engine exited calibration mode")
+
+    // 6.6 After exiting calibration: normal remapping and suppression resume
+    let postCalB4Down = InputEngine.createMouseEvent(type: .otherMouseDown, buttonNumber: 4)!
+    let resultAfter = engine.handleEvent(proxy: nil, type: .otherMouseDown, event: postCalB4Down)
+    expect(resultAfter == nil, "After calibration: button 4 down is suppressed again")
+    expectEqual(postedEvents.count, 1, "Synthetic key posted again after calibration exit")
+
+    // Clean up
+    let postCalB4Up = InputEngine.createMouseEvent(type: .otherMouseUp, buttonNumber: 4)!
+    _ = engine.handleEvent(proxy: nil, type: .otherMouseUp, event: postCalB4Up)
+}
+
 // MARK: - Main Runner
 
 @main
@@ -323,6 +389,7 @@ struct TestInputEngineRunner {
         testSuppressionLogic()
         testPauseResumeToggling()
         testLifecycleAndCleanup()
+        testCalibrationMode()
 
         print("\n=========================================================")
         print("Test Results: \(passedTests) passed, \(failedTests) failed out of \(totalTests) assertions")

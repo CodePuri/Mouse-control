@@ -110,7 +110,7 @@ public struct MainWindowView: View {
             
             // Profile Selector
             HStack(spacing: 8) {
-                Text("PROFILE:")
+                Text("MANUAL PROFILE:")
                     .font(Theme.fontBadge)
                     .foregroundColor(Theme.textMuted)
                 
@@ -148,6 +148,21 @@ public struct MainWindowView: View {
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.borderSubtle, lineWidth: 1))
                 }
                 .menuStyle(.borderlessButton)
+                
+                // Honest Global Scope indicator
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(Theme.accentCyan.opacity(0.6))
+                        .frame(width: 5, height: 5)
+                    Text("Global Tap")
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textMuted)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Theme.bgCanvas)
+                .cornerRadius(6)
+                .help("Monitors auxiliary buttons globally across connected mice via macOS CGEventTap.")
             }
             
             // View Switcher Segment
@@ -206,28 +221,28 @@ public struct MainWindowView: View {
         .background(Theme.bgPanel)
     }
     
-    // MARK: - Feature Rail (64pt)
+    // MARK: - Feature Rail (84pt)
     
     private var featureRail: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             ForEach(MainTab.allCases) { tab in
                 Button(action: {
                     withAnimation(.snappy(duration: 0.15)) {
                         activeTab = tab
                     }
                 }) {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 5) {
                         Image(systemName: tab.iconName)
                             .font(.system(size: 20))
                             .foregroundColor(activeTab == tab ? Theme.accentCyan : Theme.textMuted)
                         
                         Text(tab.rawValue)
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 10, weight: .semibold))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .fixedSize(horizontal: true, vertical: false)
                             .foregroundColor(activeTab == tab ? Theme.accentCyan : Theme.textMuted)
                     }
-                    .frame(width: 58, height: 54)
+                    .frame(width: 74, height: 56)
                     .background(activeTab == tab ? Theme.bgCardElevated : Color.clear)
                     .cornerRadius(10)
                     .overlay(
@@ -242,7 +257,7 @@ public struct MainWindowView: View {
             Spacer()
         }
         .padding(.top, 16)
-        .frame(width: 68)
+        .frame(width: 86)
         .background(Theme.bgPanel)
     }
     
@@ -299,13 +314,23 @@ public struct MainWindowView: View {
         // Connect InputEngine callbacks to DeviceManager telemetry
         profileStore.inputEngine.onButtonEventHandled = { [weak deviceManager] button, type, action in
             Task { @MainActor in
-                let typeStr = (type == .otherMouseDown) ? "Down" : "Up"
+                let typeStr = (type == .otherMouseDown) ? "Down (Press)" : "Up (Release)"
                 deviceManager?.recordEvent(
+                    source: "Quartz Global Tap",
                     button: button,
-                    type: typeStr,
+                    phase: typeStr,
                     actionDesc: action?.description ?? "Passthrough",
                     suppressed: action?.isSuppressed ?? false
                 )
+            }
+        }
+        
+        // Connect raw calibration event observer
+        profileStore.inputEngine.onRawCalibrationEvent = { [weak deviceManager, weak profileStore] button, type, event in
+            Task { @MainActor in
+                guard let dm = deviceManager, let ps = profileStore else { return }
+                let typeStr = (type == .otherMouseDown || type == .leftMouseDown || type == .rightMouseDown) ? "Down (Press)" : "Up (Release)"
+                dm.handleCalibrationEvent(button: button, type: typeStr, engine: ps.inputEngine)
             }
         }
         

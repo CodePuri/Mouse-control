@@ -50,21 +50,25 @@ public struct AssignmentsView: View {
             }
             
             // Bottom Status / Scope notice
-            VStack(spacing: 4) {
-                HStack {
-                    Image(systemName: "info.circle")
-                        .foregroundColor(Theme.textMuted)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "globe")
+                        .foregroundColor(Theme.accentCyan)
                         .font(.system(size: 11))
-                    Text(profileStore.activeProfile.deviceScope == "kreoOnly" ? "Scope: Kreo Chimera V2" : "Scope: All Connected Mice (Global)")
+                    Text("Scope: All Connected Mice (System-wide)")
                         .font(Theme.fontSmall)
-                        .foregroundColor(Theme.textMuted)
+                        .foregroundColor(Theme.textPrimary)
                     Spacer()
                 }
+                Text("Monitors auxiliary buttons via macOS CGEventTap. Isolation requires vendor kernel drivers.")
+                    .font(.system(size: 9))
+                    .foregroundColor(Theme.textMuted)
+                
                 if let feedback = localFeedback {
                     Text(feedback)
                         .font(Theme.fontSmall)
                         .foregroundColor(Theme.accentCyan)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 2)
                 }
             }
             .padding(12)
@@ -156,7 +160,7 @@ public struct AssignmentsView: View {
             // Action 1: Wispr Flow PTT
             actionCard(
                 title: "Wispr Flow Dictation",
-                subtitle: "Push-To-Talk: Hold to speak, release to type",
+                subtitle: "Push-To-Talk: Hold to speak, release to type (Right Option ⌥, Keycode 61)",
                 icon: "mic.fill",
                 iconColor: Theme.accentCyan,
                 isSelected: currentAction?.type == .wisprFlowPTT
@@ -279,14 +283,14 @@ public struct AssignmentsView: View {
                 }
             }
             
-            // Action Buttons: Test Action / Clear
+            // Action Buttons: Preview Action / Clear
             HStack(spacing: 10) {
                 Button(action: {
                     testAction(action: currentAction)
                 }) {
-                    HStack {
-                        Image(systemName: "play.fill")
-                        Text("Test Action")
+                    HStack(spacing: 6) {
+                        Image(systemName: "play.circle.fill")
+                        Text("Preview Action (Simulated)")
                     }
                     .font(Theme.fontSmall)
                     .frame(maxWidth: .infinity)
@@ -296,6 +300,7 @@ public struct AssignmentsView: View {
                     .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
+                .help("Dispatches a synthetic keydown/keyup sequence for previewing. Does not replace physical hardware acceptance.")
                 
                 Button(action: {
                     profileStore.clearAssignment(button: button)

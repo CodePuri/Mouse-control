@@ -12,6 +12,8 @@ test_runner
 test_runner.dSYM/
 test_persistence
 test_persistence.dSYM/
+test_calibration
+test_calibration.dSYM/
 test_tap
 Tools/button_logger
 Tools/calibrate_buttons
