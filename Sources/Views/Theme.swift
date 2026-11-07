@@ -13,6 +13,7 @@ public enum Theme {
     public static let textMuted = Color(red: 107/255, green: 114/255, blue: 128/255)   // #6B7280
     public static let statusGreen = Color(red: 34/255, green: 197/255, blue: 94/255)   // #22C55E
     public static let statusOrange = Color(red: 249/255, green: 115/255, blue: 22/255) // #F97316
+    public static let statusRed = Color(red: 239/255, green: 68/255, blue: 68/255)     // #EF4444
     
     public static let fontTitle = Font.system(size: 20, weight: .bold, design: .default)
     public static let fontHeader = Font.system(size: 15, weight: .semibold, design: .default)

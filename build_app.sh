@@ -68,12 +68,24 @@ cat << 'PLIST' > "$CONTENTS/Info.plist"
 </plist>
 PLIST
 
-SIGN_IDENTITY="Developer ID Application: Totem Interactive (BKS6A8KSC2)"
-if security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY"; then
-    echo "Signing with Developer ID: $SIGN_IDENTITY..."
-    codesign -s "$SIGN_IDENTITY" --force --deep "$APP_DIR"
+DEV_IDENTITY="Apple Development: Aakash Puri (CL6CHYP97V)"
+DEV_IDENTITY_ALT="Apple Development: aakashpuri15march@gmail.com (77R37882NV)"
+DEP_IDENTITY="Developer ID Application: Totem Interactive (BKS6A8KSC2)"
+
+SELECTED_IDENTITY=""
+if security find-identity -v -p codesigning | grep -q "$DEV_IDENTITY"; then
+    SELECTED_IDENTITY="$DEV_IDENTITY"
+elif security find-identity -v -p codesigning | grep -q "$DEV_IDENTITY_ALT"; then
+    SELECTED_IDENTITY="$DEV_IDENTITY_ALT"
+elif security find-identity -v -p codesigning | grep -q "$DEP_IDENTITY"; then
+    SELECTED_IDENTITY="$DEP_IDENTITY"
+fi
+
+if [ -n "$SELECTED_IDENTITY" ]; then
+    echo "Signing with identity: $SELECTED_IDENTITY..."
+    codesign -s "$SELECTED_IDENTITY" --force --deep "$APP_DIR"
 else
-    echo "Developer ID not found; signing with ad-hoc..."
+    echo "No matching certificate found; signing with ad-hoc..."
     codesign -s - --force --deep "$APP_DIR"
 fi
 
@@ -85,10 +97,12 @@ echo "Installing to $INSTALLED_APP..."
 rm -rf "$INSTALLED_APP"
 cp -R "$APP_DIR" "$INSTALLED_APP"
 
-if security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY"; then
-    codesign -s "$SIGN_IDENTITY" --force --deep "$INSTALLED_APP"
+if [ -n "$SELECTED_IDENTITY" ]; then
+    codesign -s "$SELECTED_IDENTITY" --force --deep "$INSTALLED_APP"
+else
+    codesign -s - --force --deep "$INSTALLED_APP"
 fi
 
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$INSTALLED_APP"
 
-echo "Successfully built, signed with Developer ID, and installed to $INSTALLED_APP"
+echo "Successfully built, signed, and installed to $INSTALLED_APP"

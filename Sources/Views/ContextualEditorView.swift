@@ -72,24 +72,63 @@ public struct ContextualEditorView: View {
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    // Physical Status Badge (Honest)
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(isPhysicallyObserved ? Theme.statusGreen : Theme.statusOrange)
-                            .frame(width: 8, height: 8)
+                    // Configuration Details & Honest Status (Phase 4 Specification)
+                    VStack(alignment: .leading, spacing: 6) {
+                        let assignedAction = profileStore.activeProfile.assignments[button.rawValue]
+                        let shortcutDesc: String = {
+                            guard let a = assignedAction else { return "None" }
+                            switch a.type {
+                            case .wisprFlowPTT:
+                                return "Right Option (KeyCode 61)"
+                            case .undo:
+                                return "Command+Z (⌘Z)"
+                            case .redo:
+                                return "Shift+Command+Z (⇧⌘Z)"
+                            case .copy:
+                                return "Command+C (⌘C)"
+                            case .paste:
+                                return "Command+V (⌘V)"
+                            case .shortcut:
+                                return a.displayName
+                            case .disabled:
+                                return "Disabled"
+                            case .passthrough:
+                                return "Passthrough (Default macOS)"
+                            }
+                        }()
                         
-                        Text(isPhysicallyObserved ? "Physical Signal Verified" : "Assigned — Awaiting button detection")
-                            .font(Theme.fontSmall)
-                            .foregroundColor(isPhysicallyObserved ? Theme.statusGreen : Theme.statusOrange)
+                        let (statusText, statusColor): (String, Color) = {
+                            if !PermissionManager.shared.isFullyAuthorized {
+                                return ("Status: Output failed (Permissions required)", Theme.statusRed)
+                            } else if isPhysicallyObserved {
+                                return ("Status: Working", Theme.statusGreen)
+                            } else {
+                                return ("Status: Awaiting detection", Theme.statusOrange)
+                            }
+                        }()
                         
-                        Spacer()
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(statusColor)
+                                .frame(width: 8, height: 8)
+                            
+                            Text(statusText)
+                                .font(Theme.fontSmall)
+                                .foregroundColor(statusColor)
+                            
+                            Spacer()
+                            
+                            Text("BTN \(button.rawValue)")
+                                .font(Theme.fontBadge)
+                                .foregroundColor(Theme.textMuted)
+                        }
                         
-                        Text("BTN \(button.rawValue)")
-                            .font(Theme.fontBadge)
-                            .foregroundColor(Theme.textMuted)
+                        Text("Assigned keyboard shortcut: \(shortcutDesc)")
+                            .font(Theme.fontBody)
+                            .foregroundColor(Theme.textPrimary)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
+                    .padding(.vertical, 8)
                     .background(Theme.bgCard)
                     .cornerRadius(8)
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.borderSubtle, lineWidth: 1))
@@ -103,17 +142,17 @@ public struct ContextualEditorView: View {
                     
                     Divider().background(Theme.borderSubtle)
                     
-                    // Quick Action Presets
+                    // Suggested Use Cases (Optional Configurations, not hardcoded commands)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("QUICK ACTION PRESETS")
+                        Text("SUGGESTED USE CASES")
                             .font(Theme.fontBadge)
                             .foregroundColor(Theme.textMuted)
                         
                         presetRow(
                             icon: "mic.fill",
                             color: Theme.accentCyan,
-                            title: "Wispr Flow (Right Option PTT)",
-                            subtitle: "Hold to dictate, release to type",
+                            title: "Wispr Flow Dictation",
+                            subtitle: "Suggested: Push-to-Talk via Right Option (KeyCode 61)",
                             actionType: .wisprFlowPTT,
                             action: StoredAction(type: .wisprFlowPTT, keyCode: 61, customLabel: "Wispr Flow PTT (⌥)")
                         )

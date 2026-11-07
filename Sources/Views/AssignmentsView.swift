@@ -153,23 +153,23 @@ public struct AssignmentsView: View {
             .cornerRadius(8)
             
             // Available Actions List
-            Text("RECOMMENDED ACTIONS")
+            Text("SUGGESTED USE CASES")
                 .font(Theme.fontBadge)
                 .foregroundColor(Theme.textMuted)
             
             // Action 1: Wispr Flow PTT
             actionCard(
                 title: "Wispr Flow Dictation",
-                subtitle: "Push-To-Talk: Hold to speak, release to type (Right Option ⌥, Keycode 61)",
+                subtitle: "Suggested: Push-to-Talk via Right Option (KeyCode 61)",
                 icon: "mic.fill",
                 iconColor: Theme.accentCyan,
                 isSelected: currentAction?.type == .wisprFlowPTT
             ) {
                 profileStore.setAssignment(
                     button: button,
-                    action: StoredAction(type: .wisprFlowPTT, keyCode: 61, customLabel: "Wispr Flow PTT")
+                    action: StoredAction(type: .wisprFlowPTT, keyCode: 61, customLabel: "Right Option (KeyCode 61)")
                 )
-                showFeedback("Mapped to Wispr Flow PTT (Right Option)")
+                showFeedback("Mapped to Right Option (KeyCode 61)")
             }
             
             // Action 2: Undo
