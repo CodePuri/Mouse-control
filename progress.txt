@@ -12,3 +12,12 @@
 - Corrected Wispr Flow conclusion: keycode 61 Right Option shortcut emulation is treated as a candidate requiring testing, not proof that direct binding is impossible.
 - Corrected Vendor HID interface conclusion: UsagePage 0xFF01 is treated as unverified purpose until protocol evidence is proven; no guessed reports will be sent.
 - Permission status note: CLI probe accessibility does not prove .app bundle readiness; standalone .app bundle must declare entitlements, usage descriptions, and handle active permission onboarding.
+
+[2026-11-07T17:28:30+05:30] M1 Task 1 Completed: Core Input Engine & Remapping Service:
+- Created Sources/InputEngine.swift with CGEventTap on .cghidEventTap / .headInsertEventTap.
+- Implemented InputAction (wisprFlowPTT, shortcut, undo, redo, passthrough, disabled).
+- Full event suppression (returns nil for mapped/disabled buttons, pass-through for unmapped/paused).
+- Synthetic key generation with 0x4D435452 ("MCTR") loop prevention marker.
+- Action latching from button-down to button-up with stuck-key prevention across mapping changes and pauses.
+- Dedicated background thread with CFRunLoop and NSLock synchronization.
+- Created Tests/TestInputEngine.swift covering 89 assertions across 5 test suites; 100% passing.
