@@ -10,6 +10,8 @@ build/
 *.exe
 test_runner
 test_runner.dSYM/
+test_persistence
+test_persistence.dSYM/
 test_tap
 Tools/button_logger
 Tools/calibrate_buttons
