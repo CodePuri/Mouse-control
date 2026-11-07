@@ -480,6 +480,58 @@ public final class InputEngine: @unchecked Sendable {
         return Unmanaged.passUnretained(event)
     }
 
+    /// Programmatically triggers an assigned action for a given button number.
+    /// Used by multi-interface IOHID telemetry (e.g. Consumer controls AC Back 0x224 / AC Forward 0x225
+    /// or raw hardware button reports) so actions fire even if Quartz CGEventTap does not receive them.
+    public func triggerAction(forButton buttonNumber: Int, isDown: Bool) {
+        lock.lock()
+        if _isPaused || _isCalibrating {
+            lock.unlock()
+            return
+        }
+
+        if isDown {
+            guard let action = self.mappings[buttonNumber], action != .passthrough else {
+                lock.unlock()
+                return
+            }
+            self.latchedActions[buttonNumber] = action
+            lock.unlock()
+
+            switch action {
+            case .disabled:
+                break
+            case .wisprFlowPTT(let keyCode):
+                if let synth = InputEngine.createSyntheticKeyEvent(keyCode: keyCode, isDown: true) {
+                    postSyntheticEvent(synth)
+                }
+            case .shortcut(let keyCode, let flags):
+                if let synth = InputEngine.createSyntheticKeyEvent(keyCode: keyCode, flags: flags, isDown: true) {
+                    postSyntheticEvent(synth)
+                }
+            case .undo:
+                if let synth = InputEngine.createSyntheticKeyEvent(keyCode: 6, flags: .maskCommand, isDown: true) {
+                    postSyntheticEvent(synth)
+                }
+            case .redo:
+                if let synth = InputEngine.createSyntheticKeyEvent(keyCode: 6, flags: [.maskCommand, .maskShift], isDown: true) {
+                    postSyntheticEvent(synth)
+                }
+            case .passthrough:
+                break
+            }
+            onButtonEventHandled?(buttonNumber, .otherMouseDown, action)
+        } else {
+            guard let latched = self.latchedActions.removeValue(forKey: buttonNumber) else {
+                lock.unlock()
+                return
+            }
+            lock.unlock()
+            releaseLatchedKey(latched)
+            onButtonEventHandled?(buttonNumber, .otherMouseUp, latched)
+        }
+    }
+
     /// Simulate an action (press and immediate release) for testing or user preview.
     public func simulateAction(_ action: InputAction) {
         switch action {

@@ -24,6 +24,12 @@ public struct MainWindowView: View {
     @State private var selectedButton: PhysicalButton? = .frontSide
     @State private var viewMode: MouseViewMode = .side
     @State private var isRecordingShortcut: Bool = false
+    @State private var isAccessibilityGranted: Bool = AXIsProcessTrusted()
+    @State private var showAssignmentsPalette: Bool = true
+    @State private var searchCommandText: String = ""
+    @State private var paletteSubtab: String = "COMMANDS"
+    
+    private let permCheckTimer = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
     
     public init() {}
     
@@ -32,11 +38,16 @@ public struct MainWindowView: View {
             // Top Status Bar (60pt height)
             topBar
             
+            // Accessibility Warning Banner (Prominent when permission missing or revoked)
+            if !isAccessibilityGranted {
+                accessibilityWarningBanner
+            }
+            
             Divider().background(Theme.borderSubtle)
             
-            // Main 3-Column Body: Left Navigation Rail + Center / Right Content
+            // Main Body: Left Navigation Rail + Content
             HStack(spacing: 0) {
-                // Left Navigation Rail (76pt width)
+                // Left Navigation Rail (68pt width)
                 leftNavRail
                 
                 Divider().background(Theme.borderSubtle)
@@ -45,6 +56,12 @@ public struct MainWindowView: View {
                 switch activeTab {
                 case .devices:
                     HStack(spacing: 0) {
+                        // G HUB Style Commands Palette (260pt)
+                        if showAssignmentsPalette {
+                            gHubAssignmentsPalette
+                            Divider().background(Theme.borderSubtle)
+                        }
+                        
                         // Center Stage (Dominant mouse view)
                         DeviceStageView(
                             profileStore: profileStore,
@@ -56,7 +73,7 @@ public struct MainWindowView: View {
                         
                         Divider().background(Theme.borderSubtle)
                         
-                        // Right Contextual Editor Panel (340pt width)
+                        // Right Contextual Editor Panel (320pt width)
                         ContextualEditorView(
                             profileStore: profileStore,
                             deviceManager: deviceManager,
@@ -81,7 +98,72 @@ public struct MainWindowView: View {
         .background(Theme.bgCanvas)
         .onAppear {
             setupEngineBridge()
+            checkAccessibility()
         }
+        .onReceive(permCheckTimer) { _ in
+            checkAccessibility()
+        }
+    }
+    
+    // MARK: - Accessibility Check & Warning Banner
+    
+    private func checkAccessibility() {
+        let trusted = AXIsProcessTrusted()
+        if isAccessibilityGranted != trusted {
+            isAccessibilityGranted = trusted
+            if trusted && !profileStore.inputEngine.isRunning {
+                _ = profileStore.inputEngine.start()
+            }
+        }
+    }
+    
+    private var accessibilityWarningBanner: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 20))
+                .foregroundColor(Theme.statusOrange)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Accessibility Permission Required for Side Button Remapping")
+                    .font(Theme.fontHeader)
+                    .foregroundColor(Theme.textPrimary)
+                
+                Text("If you see '⃠ Kreo Mouse Control' with a prohibition sign in System Settings, click '—' to remove the broken entry, then toggle Kreo Mouse Control ON.")
+                    .font(Theme.fontSmall)
+                    .foregroundColor(Theme.textSecondary)
+            }
+            
+            Spacer()
+            
+            Button("Grant Permission") {
+                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                _ = AXIsProcessTrustedWithOptions(options)
+            }
+            .buttonStyle(.plain)
+            .font(Theme.fontSmall)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Theme.accentCyan)
+            .foregroundColor(.black)
+            .cornerRadius(6)
+            
+            Button("Open Settings") {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            .buttonStyle(.plain)
+            .font(Theme.fontSmall)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Theme.bgCardElevated)
+            .foregroundColor(Theme.textPrimary)
+            .cornerRadius(6)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(Theme.statusOrange.opacity(0.15))
+        .overlay(Rectangle().frame(height: 1).foregroundColor(Theme.statusOrange.opacity(0.4)), alignment: .bottom)
     }
     
     // MARK: - Top Status Bar (60pt)
@@ -216,6 +298,7 @@ public struct MainWindowView: View {
                 }
                 .buttonStyle(.plain)
                 .help(tab.rawValue)
+                .accessibilityIdentifier("Tab_\(tab.rawValue)")
             }
             
             Spacer()
@@ -251,8 +334,282 @@ public struct MainWindowView: View {
             }
         }
         
+        // Connect multi-interface hardware actions from IOHIDManager
+        deviceManager.onHardwareButtonAction = { [weak profileStore] button, isDown in
+            profileStore?.inputEngine.triggerAction(forButton: button, isDown: isDown)
+        }
+        
         // Start engine background listener
         _ = profileStore.inputEngine.start()
+    }
+    
+    // MARK: - G HUB Style Assignments Palette (Image 2)
+    
+    private var gHubAssignmentsPalette: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Assignments")
+                    .font(Theme.fontTitle)
+                    .foregroundColor(Theme.textPrimary)
+                
+                Spacer()
+                
+                Button(action: {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        showAssignmentsPalette.toggle()
+                    }
+                }) {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 14))
+                        .foregroundColor(Theme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help("Toggle assignments palette")
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+            
+            // Subtabs: COMMANDS, KEYS, ACTIONS, SYSTEM (G HUB Image 2)
+            HStack(spacing: 2) {
+                ForEach(["COMMANDS", "KEYS", "ACTIONS", "SYSTEM"], id: \.self) { tab in
+                    Button(action: {
+                        paletteSubtab = tab
+                    }) {
+                        Text(tab)
+                            .font(.system(size: 9, weight: .bold))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .foregroundColor(paletteSubtab == tab ? Theme.accentCyan : Theme.textMuted)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 5)
+                            .overlay(
+                                Rectangle()
+                                    .frame(height: 2)
+                                    .foregroundColor(paletteSubtab == tab ? Theme.accentCyan : Color.clear),
+                                alignment: .bottom
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 8)
+            
+            // Search Bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(Theme.textMuted)
+                    .font(.system(size: 12))
+                TextField("Search for a command...", text: $searchCommandText)
+                    .textFieldStyle(.plain)
+                    .font(Theme.fontSmall)
+                    .foregroundColor(Theme.textPrimary)
+                if !searchCommandText.isEmpty {
+                    Button(action: { searchCommandText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(Theme.textMuted)
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(8)
+            .background(Theme.bgCardElevated)
+            .cornerRadius(6)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
+            
+            Divider().background(Theme.borderSubtle)
+            
+            // Commands List
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if paletteSubtab == "COMMANDS" || paletteSubtab == "ACTIONS" {
+                        // Voice & AI Group
+                        commandGroup(title: "Voice & AI Dictation") {
+                            commandRow(
+                                glyph: "⌥",
+                                title: "Wispr Flow PTT",
+                                subtitle: "Right Option (KeyCode 61)",
+                                action: StoredAction(type: .wisprFlowPTT, keyCode: 61, customLabel: "Wispr Flow PTT (⌥)")
+                            )
+                            commandRow(
+                                glyph: "W",
+                                title: "Willow Voice",
+                                subtitle: "Dictation shortcut",
+                                action: StoredAction(type: .shortcut, keyCode: 49, modifiers: CGEventFlags.maskAlternate.rawValue, customLabel: "Willow Voice (⌥Space)")
+                            )
+                        }
+                        
+                        // Editing Group (G HUB Image 2)
+                        commandGroup(title: "Editing") {
+                            commandRow(
+                                glyph: "⌘Z",
+                                title: "Undo",
+                                subtitle: "Revert last action",
+                                action: StoredAction(type: .undo, keyCode: 6, modifiers: CGEventFlags.maskCommand.rawValue, customLabel: "Undo (⌘Z)")
+                            )
+                            commandRow(
+                                glyph: "⇧⌘Z",
+                                title: "Redo",
+                                subtitle: "Reapply action",
+                                action: StoredAction(type: .redo, keyCode: 6, modifiers: CGEventFlags.maskCommand.rawValue | CGEventFlags.maskShift.rawValue, customLabel: "Redo (⇧⌘Z)")
+                            )
+                            commandRow(
+                                glyph: "⌘X",
+                                title: "Cut",
+                                subtitle: "Cut to clipboard",
+                                action: StoredAction(type: .shortcut, keyCode: 7, modifiers: CGEventFlags.maskCommand.rawValue, customLabel: "Cut (⌘X)")
+                            )
+                            commandRow(
+                                glyph: "⌘C",
+                                title: "Copy",
+                                subtitle: "Copy to clipboard",
+                                action: StoredAction(type: .copy, keyCode: 8, modifiers: CGEventFlags.maskCommand.rawValue, customLabel: "Copy (⌘C)")
+                            )
+                            commandRow(
+                                glyph: "⌘V",
+                                title: "Paste",
+                                subtitle: "Paste from clipboard",
+                                action: StoredAction(type: .paste, keyCode: 9, modifiers: CGEventFlags.maskCommand.rawValue, customLabel: "Paste (⌘V)")
+                            )
+                            commandRow(
+                                glyph: "⌘A",
+                                title: "Select All",
+                                subtitle: "Select all items",
+                                action: StoredAction(type: .shortcut, keyCode: 0, modifiers: CGEventFlags.maskCommand.rawValue, customLabel: "Select All (⌘A)")
+                            )
+                            commandRow(
+                                glyph: "⌘S",
+                                title: "Save",
+                                subtitle: "Save active document",
+                                action: StoredAction(type: .shortcut, keyCode: 1, modifiers: CGEventFlags.maskCommand.rawValue, customLabel: "Save (⌘S)")
+                            )
+                            commandRow(
+                                glyph: "⌘W",
+                                title: "Close Tab",
+                                subtitle: "Close window/tab",
+                                action: StoredAction(type: .shortcut, keyCode: 13, modifiers: CGEventFlags.maskCommand.rawValue, customLabel: "Close Tab (⌘W)")
+                            )
+                            commandRow(
+                                glyph: "⌘T",
+                                title: "New Tab",
+                                subtitle: "Open new browser tab",
+                                action: StoredAction(type: .shortcut, keyCode: 17, modifiers: CGEventFlags.maskCommand.rawValue, customLabel: "New Tab (⌘T)")
+                            )
+                        }
+                    } else if paletteSubtab == "SYSTEM" {
+                        commandGroup(title: "macOS System Controls") {
+                            commandRow(
+                                glyph: "⌃↑",
+                                title: "Mission Control",
+                                subtitle: "Show all windows",
+                                action: StoredAction(type: .shortcut, keyCode: 126, modifiers: CGEventFlags.maskControl.rawValue, customLabel: "Mission Control")
+                            )
+                            commandRow(
+                                glyph: "F11",
+                                title: "Show Desktop",
+                                subtitle: "Reveal desktop",
+                                action: StoredAction(type: .shortcut, keyCode: 103, customLabel: "Show Desktop")
+                            )
+                            commandRow(
+                                glyph: "⌘⇥",
+                                title: "App Switcher",
+                                subtitle: "Cycle applications",
+                                action: StoredAction(type: .shortcut, keyCode: 48, modifiers: CGEventFlags.maskCommand.rawValue, customLabel: "App Switcher")
+                            )
+                        }
+                    } else { // KEYS
+                        commandGroup(title: "Standard Navigation Keys") {
+                            commandRow(
+                                glyph: "⌫",
+                                title: "Backspace / Back",
+                                subtitle: "Navigate back",
+                                action: StoredAction(type: .shortcut, keyCode: 51, customLabel: "Delete / Back")
+                            )
+                            commandRow(
+                                glyph: "⎋",
+                                title: "Escape",
+                                subtitle: "Cancel / exit",
+                                action: StoredAction(type: .shortcut, keyCode: 53, customLabel: "Escape")
+                            )
+                            commandRow(
+                                glyph: "⇥",
+                                title: "Tab",
+                                subtitle: "Next focus element",
+                                action: StoredAction(type: .shortcut, keyCode: 48, customLabel: "Tab")
+                            )
+                        }
+                    }
+                }
+                .padding(14)
+            }
+        }
+        .frame(width: 280)
+        .background(Theme.bgPanel)
+    }
+    
+    @ViewBuilder
+    private func commandGroup<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .font(Theme.fontBadge)
+                .foregroundColor(Theme.textMuted)
+                .padding(.leading, 4)
+            
+            VStack(spacing: 4) {
+                content()
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func commandRow(glyph: String, title: String, subtitle: String, action: StoredAction) -> some View {
+        let isMatch = searchCommandText.isEmpty ||
+                     title.localizedCaseInsensitiveContains(searchCommandText) ||
+                     subtitle.localizedCaseInsensitiveContains(searchCommandText)
+        
+        if isMatch {
+            Button(action: {
+                assignCommandToSelectedButton(action)
+            }) {
+                HStack(spacing: 10) {
+                    Text(glyph)
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .frame(width: 32, height: 24)
+                        .background(Theme.bgCard)
+                        .foregroundColor(Theme.accentCyan)
+                        .cornerRadius(4)
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(title)
+                            .font(Theme.fontHeader)
+                            .foregroundColor(Theme.textPrimary)
+                        Text(subtitle)
+                            .font(.system(size: 9))
+                            .foregroundColor(Theme.textSecondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.textMuted)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Theme.bgCardElevated)
+                .cornerRadius(6)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    private func assignCommandToSelectedButton(_ action: StoredAction) {
+        let targetBtn = selectedButton ?? .frontSide
+        profileStore.setAssignment(button: targetBtn, action: action)
     }
     
     private func setWisprFlowOptimizedProfile() {

@@ -375,6 +375,54 @@ func testCalibrationMode() {
     _ = engine.handleEvent(proxy: nil, type: .otherMouseUp, event: postCalB4Up)
 }
 
+func testDirectActionTriggering() {
+    print("\n--- Test Suite 7: Direct Action Triggering (Multi-Interface IOHID Dispatch) ---")
+
+    let engine = InputEngine(mappings: [
+        4: .wisprFlowPTT(keyCode: 61),
+        3: .undo
+    ])
+
+    var postedEvents: [CGEvent] = []
+    engine.eventPoster = { event, _ in
+        postedEvents.append(event)
+    }
+
+    var handledCallbacks: [(button: Int, type: CGEventType, action: InputAction?)] = []
+    engine.onButtonEventHandled = { btn, type, act in
+        handledCallbacks.append((btn, type, act))
+    }
+
+    // 7.1 Direct trigger Front Button Down (Wispr Flow PTT)
+    engine.triggerAction(forButton: 4, isDown: true)
+    expectEqual(postedEvents.count, 1, "Direct trigger: 1 synthetic event posted on button down")
+    expectEqual(engine.currentLatchedActions().count, 1, "Action latched on down")
+    expectEqual(postedEvents.first?.getIntegerValueField(.keyboardEventKeycode), 61, "Posted keycode 61 (Right Option)")
+    expectEqual(handledCallbacks.count, 1, "Handled callback called")
+    expectEqual(handledCallbacks.first?.button, 4, "Callback button is 4")
+
+    // 7.2 Direct trigger Front Button Up (Wispr Flow PTT Release)
+    engine.triggerAction(forButton: 4, isDown: false)
+    expectEqual(postedEvents.count, 2, "Direct trigger: 2nd synthetic event posted on button up")
+    expectEqual(engine.currentLatchedActions().count, 0, "Action unlatched on up")
+    expectEqual(postedEvents.last?.getIntegerValueField(.keyboardEventKeycode), 61, "Released keycode 61")
+    expectEqual(handledCallbacks.count, 2, "Handled callback called for up")
+
+    // 7.3 Direct trigger Rear Button Down & Up (Undo Cmd+Z)
+    engine.triggerAction(forButton: 3, isDown: true)
+    expectEqual(postedEvents.count, 3, "Undo down posted")
+    expect(postedEvents.last?.flags.contains(.maskCommand) ?? false, "Undo has Command flag")
+    engine.triggerAction(forButton: 3, isDown: false)
+    expectEqual(postedEvents.count, 4, "Undo up posted")
+    expectEqual(engine.currentLatchedActions().count, 0, "No actions latched after release")
+
+    // 7.4 Paused engine does not dispatch
+    engine.pause()
+    engine.triggerAction(forButton: 4, isDown: true)
+    expectEqual(postedEvents.count, 4, "No events dispatched when engine is paused")
+    engine.resume()
+}
+
 // MARK: - Main Runner
 
 @main
@@ -390,6 +438,7 @@ struct TestInputEngineRunner {
         testPauseResumeToggling()
         testLifecycleAndCleanup()
         testCalibrationMode()
+        testDirectActionTriggering()
 
         print("\n=========================================================")
         print("Test Results: \(passedTests) passed, \(failedTests) failed out of \(totalTests) assertions")

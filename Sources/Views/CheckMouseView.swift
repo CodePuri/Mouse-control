@@ -71,6 +71,9 @@ public struct CheckMouseView: View {
                     )
                 }
                 
+                // Multi-Interface HID Diagnostic Panel
+                multiInterfaceDiagnosticPanel
+                
                 // Troubleshooting Card
                 troubleshootingCard
             }
@@ -260,6 +263,224 @@ public struct CheckMouseView: View {
         )
     }
     
+    // MARK: - Multi-Interface HID Diagnostic Panel
+    
+    private var multiInterfaceDiagnosticPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Multi-Interface Receiver Telemetry (0x248a:0x5b4a)")
+                        .font(Theme.fontHeader)
+                        .foregroundColor(Theme.textPrimary)
+                    Text("Real-time telemetry monitored directly across all 3 USB receiver interfaces via IOHIDManager.")
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textSecondary)
+                }
+                
+                Spacer()
+                
+                // Calibration / Guided Test Button
+                Button(action: {
+                    if deviceManager.calibrationState == .idle {
+                        deviceManager.startCalibration(engine: profileStore.inputEngine)
+                    } else {
+                        deviceManager.cancelCalibration(engine: profileStore.inputEngine)
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: deviceManager.calibrationState == .idle ? "play.circle.fill" : "stop.circle.fill")
+                        Text(deviceManager.calibrationState == .idle ? "Start Guided Receiver Test" : "Stop Test (\(deviceManager.calibrationSecondsRemaining)s)")
+                    }
+                    .font(Theme.fontSmall)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(deviceManager.calibrationState == .idle ? Theme.accentCyan : Theme.statusOrange)
+                    .foregroundColor(.black)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            // 3 Interfaces Status Grid
+            HStack(spacing: 12) {
+                interfaceBadge(
+                    name: "Mouse Interface",
+                    endpoint: "0x01:0x02",
+                    detail: "3 Buttons Declared (Left, Right, Middle)",
+                    isActive: isConnected,
+                    icon: "computermouse.fill"
+                )
+                
+                interfaceBadge(
+                    name: "Consumer/Keyboard",
+                    endpoint: "0x01:0x06",
+                    detail: "AC Back (0x224), AC Forward (0x225)",
+                    isActive: isConnected,
+                    icon: "keyboard.fill"
+                )
+                
+                interfaceBadge(
+                    name: "Vendor Interface",
+                    endpoint: "0xFF01:0x00",
+                    detail: "CompX WebHID Onboard Protocol",
+                    isActive: isConnected,
+                    icon: "cpu.fill"
+                )
+            }
+            
+            // Guided Test Progression Card (if test active or completed)
+            if deviceManager.calibrationState != .idle {
+                guidedProgressionBanner
+            }
+            
+            // Live Event Stream Table
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("LIVE HID EVENTS FEED")
+                        .font(Theme.fontBadge)
+                        .foregroundColor(Theme.textMuted)
+                    
+                    Spacer()
+                    
+                    if !deviceManager.lastRawReportHex.isEmpty {
+                        Text(deviceManager.lastRawReportHex)
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundColor(Theme.accentCyan)
+                    }
+                }
+                
+                if deviceManager.observedHIDEvents.isEmpty {
+                    Text("No hardware packets received yet. Click mouse buttons to view incoming USB reports.")
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textMuted)
+                        .padding(.vertical, 8)
+                } else {
+                    VStack(spacing: 4) {
+                        ForEach(deviceManager.observedHIDEvents.prefix(6)) { ev in
+                            HStack(spacing: 10) {
+                                Text(ev.phase)
+                                    .font(.system(size: 9, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(ev.value != 0 ? Theme.accentCyan.opacity(0.2) : Theme.bgCanvas)
+                                    .foregroundColor(ev.value != 0 ? Theme.accentCyan : Theme.textMuted)
+                                    .cornerRadius(4)
+                                
+                                Text(ev.description)
+                                    .font(Theme.fontSmall)
+                                    .foregroundColor(Theme.textPrimary)
+                                
+                                Spacer()
+                                
+                                Text(ev.interfaceType)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(Theme.textSecondary)
+                                
+                                Text("Page 0x\(String(ev.usagePage, radix: 16)) : 0x\(String(ev.usage, radix: 16))")
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundColor(Theme.textMuted)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Theme.bgCanvas)
+                            .cornerRadius(6)
+                        }
+                    }
+                }
+            }
+            .padding(12)
+            .background(Theme.bgCanvas.opacity(0.5))
+            .cornerRadius(8)
+        }
+        .padding(18)
+        .background(Theme.bgCard)
+        .cornerRadius(12)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.borderSubtle, lineWidth: 1))
+    }
+    
+    private var guidedProgressionBanner: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(Theme.accentCyan)
+                .frame(width: 10, height: 10)
+                .scaleEffect(1.2)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                switch deviceManager.calibrationState {
+                case .step1_positiveControl:
+                    Text("Step 1 of 3: Click Middle Button (Positive Control Check)")
+                        .font(Theme.fontHeader)
+                        .foregroundColor(Theme.accentCyan)
+                    Text("Click the scroll wheel down once so we can confirm raw click reception from your mouse.")
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textSecondary)
+                case .step2_frontButton:
+                    Text("Step 2 of 3: Click Front Purple Side Button")
+                        .font(Theme.fontHeader)
+                        .foregroundColor(Theme.accentCyan)
+                    Text("Click and release the front side button (closest to scroll wheel) to detect its interface.")
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textSecondary)
+                case .step3_rearButton:
+                    Text("Step 3 of 3: Click Rear Purple Side Button")
+                        .font(Theme.fontHeader)
+                        .foregroundColor(Theme.accentCyan)
+                    Text("Click and release the rear side button (closest to palm) to complete calibration.")
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textSecondary)
+                case .completed(let front, let rear):
+                    Text("Guided Test Passed: Front Button \(front), Rear Button \(rear)")
+                        .font(Theme.fontHeader)
+                        .foregroundColor(Theme.statusGreen)
+                    Text("Both side buttons have been identified and mapped to Wispr Flow (Front) and Undo (Rear).")
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textSecondary)
+                case .timedOut(let pos, let front, let rear):
+                    Text("Guided Test Concluded (30s Window)")
+                        .font(Theme.fontHeader)
+                        .foregroundColor(Theme.statusOrange)
+                    Text("Positive Control: \(pos ? "Verified" : "Pending") | Front: \(front ? "Detected" : "Pending") | Rear: \(rear ? "Detected" : "Pending")")
+                        .font(Theme.fontSmall)
+                        .foregroundColor(Theme.textSecondary)
+                case .idle:
+                    EmptyView()
+                }
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Theme.accentCyan.opacity(0.1))
+        .cornerRadius(8)
+    }
+    
+    @ViewBuilder
+    private func interfaceBadge(name: String, endpoint: String, detail: String, isActive: Bool, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundColor(isActive ? Theme.accentCyan : Theme.textMuted)
+                Text(name)
+                    .font(Theme.fontHeader)
+                    .foregroundColor(Theme.textPrimary)
+                Spacer()
+                Circle()
+                    .fill(isActive ? Theme.statusGreen : Theme.statusOrange)
+                    .frame(width: 6, height: 6)
+            }
+            Text("Endpoint \(endpoint)")
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(Theme.accentCyan)
+            Text(detail)
+                .font(.system(size: 9))
+                .foregroundColor(Theme.textMuted)
+                .lineLimit(1)
+        }
+        .padding(10)
+        .background(Theme.bgCanvas)
+        .cornerRadius(8)
+    }
+
     // MARK: - Troubleshooting Card (Actionable & Honest)
     
     private var troubleshootingCard: some View {

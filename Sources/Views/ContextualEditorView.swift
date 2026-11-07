@@ -155,6 +155,24 @@ public struct ContextualEditorView: View {
                         )
                         
                         presetRow(
+                            icon: "macwindow.on.rectangle",
+                            color: Theme.accentCyan,
+                            title: "Mission Control",
+                            subtitle: "Show all open windows",
+                            actionType: .shortcut,
+                            action: StoredAction(type: .shortcut, keyCode: 126, modifiers: CGEventFlags.maskControl.rawValue, customLabel: "Mission Control (⌃↑)")
+                        )
+                        
+                        presetRow(
+                            icon: "rectangle.inset.filled.and.person.filled",
+                            color: Theme.statusGreen,
+                            title: "Show Desktop (F11)",
+                            subtitle: "Instantly reveal desktop",
+                            actionType: .shortcut,
+                            action: StoredAction(type: .shortcut, keyCode: 103, customLabel: "Show Desktop (F11)")
+                        )
+                        
+                        presetRow(
                             icon: "arrow.left.arrow.right",
                             color: Theme.textSecondary,
                             title: "Passthrough (Browser Nav)",
